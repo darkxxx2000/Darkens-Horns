@@ -15,3 +15,7 @@ git push -u origin main
 En el repositorio: Settings → Pages → Deploy from a branch → `main` / `(root)`. Tu web quedará en `https://TU_USUARIO.github.io/mirador/`.
 
 Aviso: los datos y portadas pertenecen a AniList y a sus autores; si publicas la web, cita a AniList como fuente.
+
+## Cambiar títulos, imágenes y contenido
+Edita `contenido.js`: ahí defines el nombre de la web (`window.SITIO`) y cada elemento (`window.CATALOGO`) con su título, imagen, descripción, géneros y enlaces. Si `CATALOGO` queda vacío, la web vuelve a usar el catálogo automático de AniList.
+Para usar tus imágenes, súbelas a una carpeta `imagenes/` del repositorio y pon `imagen: 'imagenes/mi-foto.jpg'`.

@@ -14,6 +14,47 @@ const VIEWS = {
 const $ = (id) => document.getElementById(id);
 const state = {view:'home', genre:null, search:'', page:1, hasNext:false, loading:false};
 
+// ---- Modo contenido propio (contenido.js) ----
+const LOCAL = Array.isArray(window.CATALOGO) && window.CATALOGO.length > 0;
+const SITIO = Object.assign({nombre:'Mira', destacado:'dor', subtitulo:'', buscar:'', nota:'', enlaces:'Dónde verlo (oficial)'}, window.SITIO || {});
+function normLocal(c,i){
+  return {id:String(c.id||('l'+i)), title:String(c.titulo||'Sin título'), cover:String(c.imagen||''),
+    score:c.puntuacion?String(c.puntuacion):null, fila:c.fila||'Destacados',
+    full:{episodes:c.episodios||null, format:String(c.tipo||''), year:c.anio||null, genres:Array.isArray(c.generos)?c.generos:[],
+      desc:String(c.descripcion||''), url:null,
+      links:(c.enlaces||[]).filter((l)=>l&&/^https:\/\//.test(l.url)).map((l)=>({site:String(l.texto||'Abrir'),url:l.url,custom:true}))}};
+}
+const LOCAL_ITEMS = LOCAL ? window.CATALOGO.map(normLocal) : [];
+const LOCAL_ROWS = [];
+if (LOCAL) {
+  const filas = [];
+  LOCAL_ITEMS.forEach((m)=>{ if(!filas.includes(m.fila)) filas.push(m.fila); });
+  filas.forEach((f,i)=>{ VIEWS['f'+i]={t:f,fila:f}; LOCAL_ROWS.push('f'+i); });
+  VIEWS.all={t:'Todo el catálogo'};
+}
+function localFetch(v){
+  let items = LOCAL_ITEMS.slice();
+  if (v.fila) items = items.filter((m)=>m.fila===v.fila);
+  if (v.genre) items = items.filter((m)=>m.full.genres.includes(v.genre));
+  if (v.search){ const q=v.search.toLowerCase(); items = items.filter((m)=>(m.title+' '+m.full.desc).toLowerCase().includes(q)); }
+  const start=(v.page-1)*v.perPage;
+  return Promise.resolve({items:items.slice(start,start+v.perPage), hasNext:items.length>start+v.perPage});
+}
+function genreList(){ return LOCAL ? [...new Set(LOCAL_ITEMS.flatMap((m)=>m.full.genres))] : GENRES; }
+// Marca: nombre, logo y textos
+(function(){
+  const l=$('logo'); l.textContent=SITIO.nombre;
+  const sp=document.createElement('span'); sp.textContent=SITIO.destacado; l.appendChild(sp);
+  document.title=SITIO.nombre+SITIO.destacado+(SITIO.subtitulo?' · '+SITIO.subtitulo:'');
+  $('q').placeholder = SITIO.buscar || (LOCAL ? 'Buscar…' : 'Buscar anime…');
+  $('h-links').textContent = LOCAL ? (SITIO.enlaces==='Dónde verlo (oficial)'?'Enlaces':SITIO.enlaces) : SITIO.enlaces;
+  if (LOCAL) {
+    $('note').textContent = SITIO.nota;
+    const t=document.querySelector('[data-view="trending"]'); t.dataset.view='all'; t.textContent='📚 Todo el catálogo';
+    ['popular','top','airing'].forEach((v)=>{document.querySelector('[data-view="'+v+'"]').hidden=true;});
+  }
+})();
+
 // ---- Listas guardadas en el navegador ----
 function load(k){try{return JSON.parse(localStorage.getItem(k)||'[]')}catch(e){return []}}
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
@@ -28,6 +69,7 @@ function counts(){$('n-pend').textContent=lists.pend.length;$('n-visto').textCon
 
 // ---- Datos ----
 async function fetchMedia(v){
+  if (LOCAL) return localFetch(v);
   const res = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({query:QUERY,variables:v})});
   if(!res.ok) throw new Error('HTTP '+res.status);
   const j = await res.json();
@@ -67,7 +109,7 @@ function setActive(v){document.querySelectorAll('.side [data-view]').forEach((b)
 async function showHome(){
   state.view='home'; setActive('home'); $('more').hidden=true; setMsg('');
   const box=$('content'); box.innerHTML=''; $('title').textContent='Inicio';
-  for(const key of ['trending','popular','top']){
+  for(const key of (LOCAL?LOCAL_ROWS:['trending','popular','top'])){
     const wrap=document.createElement('section');
     const head=document.createElement('div'); head.className='row-head';
     const h=document.createElement('h2'); h.textContent=VIEWS[key].t;
@@ -79,7 +121,7 @@ async function showHome(){
     const row=document.createElement('div'); row.className='row'; row.appendChild(skeletons(8));
     prev.onclick=()=>row.scrollBy({left:-row.clientWidth*.8}); next.onclick=()=>row.scrollBy({left:row.clientWidth*.8});
     wrap.append(head,row); box.appendChild(wrap);
-    fetchMedia({page:1,perPage:20,sort:VIEWS[key].sort}).then((r)=>{row.innerHTML='';r.items.forEach((m)=>row.appendChild(card(m)))})
+    fetchMedia({page:1,perPage:20,sort:VIEWS[key].sort,fila:VIEWS[key].fila}).then((r)=>{row.innerHTML='';r.items.forEach((m)=>row.appendChild(card(m)))})
       .catch(()=>{row.innerHTML='';setMsg('No se pudo cargar el catálogo. Revisa tu conexión e inténtalo de nuevo.')});
   }
 }
@@ -92,7 +134,7 @@ async function showGrid(view,reset=true){
   const grid=$('grid'); const sk=skeletons(12); grid.appendChild(sk); state.loading=true; setMsg(''); $('more').hidden=true;
   try{
     const vars={page:state.page,perPage:30,sort:view==='search'?['SEARCH_MATCH']:v.sort};
-    if(state.genre) vars.genre=state.genre; if(v.status) vars.status=v.status; if(view==='search') vars.search=state.search;
+    if(state.genre) vars.genre=state.genre; if(v.status) vars.status=v.status; if(LOCAL&&v.fila) vars.fila=v.fila; if(view==='search') vars.search=state.search;
     const r=await fetchMedia(vars);
     grid.querySelectorAll('.skeleton').forEach((e)=>e.remove());
     r.items.forEach((m)=>grid.appendChild(card(m)));
@@ -111,6 +153,7 @@ function showList(k){
 }
 
 async function showRandom(){
+  if(LOCAL){ openModal(LOCAL_ITEMS[Math.floor(Math.random()*LOCAL_ITEMS.length)]); return; }
   setMsg('Buscando algo al azar…');
   try{
     const r=await fetchMedia({page:Math.ceil(Math.random()*200),perPage:1,sort:['POPULARITY_DESC']});
@@ -123,7 +166,7 @@ let current=null;
 function openModal(m){
   current=m; $('m-img').src=m.cover; $('m-title').textContent=m.title;
   const f=m.full||{}; const bits=[];
-  if(m.score) bits.push('★ '+m.score); if(f.format) bits.push(f.format.replace('_',' ')); if(f.year) bits.push(f.year); if(f.episodes) bits.push(f.episodes+' episodios');
+  if(m.score) bits.push('★ '+m.score); if(f.format) bits.push(String(f.format).replace('_',' ')); if(f.year) bits.push(f.year); if(f.episodes) bits.push(f.episodes+' episodios');
   $('m-meta').textContent=bits.join(' · ');
   const tags=$('m-tags'); tags.innerHTML=''; (f.genres||[]).forEach((g)=>{const s=document.createElement('span');s.textContent=GENRES_ES[g]||g;tags.appendChild(s)});
   $('m-desc').textContent=f.desc||'Sin sinopsis disponible.';
@@ -165,9 +208,9 @@ function renderChips(){
   const all=document.createElement('button'); all.className='chip'+(state.genre?'':' on'); all.textContent='Todo';
   all.onclick=()=>{state.genre=null;renderChips();state.view==='home'||state.view==='pend'||state.view==='visto'?showHome():showGrid(state.view)};
   box.appendChild(all);
-  GENRES.forEach((g)=>{
+  genreList().forEach((g)=>{
     const c=document.createElement('button'); c.className='chip'+(state.genre===g?' on':''); c.textContent=GENRES_ES[g]||g;
-    c.onclick=()=>{state.genre=g;state.search='';$('q').value='';renderChips();showGrid(['home','pend','visto','search'].includes(state.view)?'popular':state.view)};
+    c.onclick=()=>{state.genre=g;state.search='';$('q').value='';renderChips();showGrid(['home','pend','visto','search'].includes(state.view)?(LOCAL?'all':'popular'):state.view)};
     box.appendChild(c);
   });
 }

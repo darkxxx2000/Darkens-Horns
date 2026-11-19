@@ -28,7 +28,7 @@
     <button data-view="pend">🕒 Mis pendientes <b id="n-pend">0</b></button>
     <button data-view="visto">✅ Vistos <b id="n-visto">0</b></button>
   </nav>
-  <p class="note">Mirador no aloja vídeos. Cada ficha enlaza a plataformas oficiales. Datos de <a href="https://anilist.co" target="_blank" rel="noopener noreferrer">AniList</a>.</p>
+  <p class="note" id="note">Mirador no aloja vídeos. Cada ficha enlaza a plataformas oficiales. Datos de <a href="https://anilist.co" target="_blank" rel="noopener noreferrer">AniList</a>.</p>
 </aside>
 
 <main>
@@ -52,12 +52,13 @@
         <button class="btn" id="b-pend"></button>
         <button class="btn alt" id="b-visto"></button>
       </div>
-      <h3>Dónde verlo (oficial)</h3>
+      <h3 id="h-links">Dónde verlo (oficial)</h3>
       <div class="links" id="m-links"></div>
     </div>
   </div>
 </div>
 
+<script src="contenido.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
