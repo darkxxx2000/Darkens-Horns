@@ -26,6 +26,15 @@
 .it .bar{display:flex;gap:6px}
 .it button{flex:1;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);cursor:pointer;font-size:.8rem}
 .it button.del{color:#ff6b6b}
+.pgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-top:8px}
+.pgi{position:relative;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:6px;cursor:grab}
+.pgi.drag{opacity:.35}.pgi.over{outline:2px solid var(--acc)}
+.pgi img{width:100%;aspect-ratio:2/3;object-fit:contain;display:block;border-radius:6px;background:#0006;cursor:zoom-in}
+.pgi .num{position:absolute;left:10px;top:10px;background:#000b;color:#fff;font-size:.75rem;padding:1px 7px;border-radius:7px}
+.pgi .tag{position:absolute;right:10px;top:10px;background:var(--acc2);color:#2a1800;font-size:.68rem;font-weight:700;padding:1px 6px;border-radius:7px}
+.pgi .pb{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin-top:6px}
+.pgi .pb button{padding:5px 0;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;font-size:.85rem}
+.pgi .pb button:disabled{opacity:.3;cursor:default}
 details summary{cursor:pointer;font-weight:700}
 details ol{line-height:1.6;color:var(--muted)}
 .row2{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
@@ -74,9 +83,11 @@ details ol{line-height:1.6;color:var(--muted)}
       <input id="file" type="file" accept="image/*">
       <img id="preview" class="preview" alt="" hidden>
     </div>
-    <div class="f"><label for="files">Páginas del contenido (opcional: varias imágenes, se ordenan por nombre: 001, 002…)</label>
+    <div class="f"><label for="files">Páginas del contenido (opcional). Puedes añadir varias a la vez y luego reordenarlas.</label>
       <input id="files" type="file" accept="image/*" multiple>
       <span class="hint" id="files-n"></span>
+      <div class="pgs" id="pgs"></div>
+      <input id="one" type="file" accept="image/*" hidden>
     </div>
     <div class="f"><label for="titulo">Título *</label><input id="titulo" maxlength="120"></div>
     <div class="two">
@@ -215,10 +226,56 @@ function compress(file, maxW) {
     img.src = u;
   });
 }
+// ---------- Gestor de páginas: vista previa, orden, quitar y reemplazar ----------
+let pageList = []; // { kind: 'old', path } | { kind: 'new', file, url }
+let dragIdx = null, replaceIdx = null;
+const natural = (x, y) => x.name.localeCompare(y.name, undefined, { numeric: true });
+const pageSrc = (p) => (p.kind === 'old' ? rawUrl(p.path) : p.url);
+function dropPage(p) { if (p.kind === 'new') URL.revokeObjectURL(p.url); }
+function movePage(from, to) {
+  if (to < 0 || to >= pageList.length || from === to) return;
+  const [x] = pageList.splice(from, 1); pageList.splice(to, 0, x); renderPages();
+}
 $('files').onchange = () => {
-  const n = $('files').files.length;
-  $('files-n').textContent = n ? n + ' imagen(es) seleccionada(s). Si estás editando, reemplazan a las páginas actuales.' : '';
+  [...$('files').files].sort(natural).forEach((f) => pageList.push({ kind: 'new', file: f, url: URL.createObjectURL(f) }));
+  $('files').value = ''; renderPages();
 };
+$('one').onchange = () => {
+  const f = $('one').files[0]; $('one').value = '';
+  if (!f || replaceIdx === null || !pageList[replaceIdx]) return;
+  dropPage(pageList[replaceIdx]);
+  pageList[replaceIdx] = { kind: 'new', file: f, url: URL.createObjectURL(f) };
+  replaceIdx = null; renderPages();
+};
+function renderPages() {
+  const box = $('pgs'); box.innerHTML = '';
+  $('files-n').textContent = pageList.length
+    ? pageList.length + ' página(s). Arrastra para reordenar, o usa ◀ ▶. Clic en la imagen para verla grande.'
+    : '';
+  pageList.forEach((p, i) => {
+    const d = document.createElement('div'); d.className = 'pgi'; d.draggable = true;
+    const img = document.createElement('img'); img.alt = 'Página ' + (i + 1); img.src = pageSrc(p); img.draggable = false;
+    img.onclick = () => window.open(pageSrc(p), '_blank', 'noopener');
+    const num = document.createElement('span'); num.className = 'num'; num.textContent = i + 1;
+    d.append(img, num);
+    if (p.kind === 'new') { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'nueva'; d.appendChild(t); }
+    const pb = document.createElement('div'); pb.className = 'pb';
+    const mk = (txt, title, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = txt; b.title = title; b.disabled = !!dis; b.onclick = fn; return b; };
+    pb.append(
+      mk('◀', 'Mover antes', () => movePage(i, i - 1), i === 0),
+      mk('▶', 'Mover después', () => movePage(i, i + 1), i === pageList.length - 1),
+      mk('⟲', 'Reemplazar esta página', () => { replaceIdx = i; $('one').click(); }),
+      mk('🗑', 'Quitar esta página', () => { dropPage(p); pageList.splice(i, 1); renderPages(); })
+    );
+    d.appendChild(pb);
+    d.addEventListener('dragstart', (e) => { dragIdx = i; d.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(i)); } catch (x) {} });
+    d.addEventListener('dragend', () => { dragIdx = null; renderPages(); });
+    d.addEventListener('dragover', (e) => { if (dragIdx === null) return; e.preventDefault(); d.classList.add('over'); });
+    d.addEventListener('dragleave', () => d.classList.remove('over'));
+    d.addEventListener('drop', (e) => { e.preventDefault(); if (dragIdx !== null) { const from = dragIdx; dragIdx = null; movePage(from, i); } });
+    box.appendChild(d);
+  });
+}
 async function putRetry(path, body) {
   for (let i = 0; ; i++) {
     try { return await gh('PUT', path, body); }
@@ -244,7 +301,7 @@ function rawUrl(path) {
 // ---------- Publicar / editar ----------
 function resetForm() {
   ['file', 'files', 'titulo', 'anime', 'personaje', 'generos', 'hashtags', 'descripcion'].forEach((id) => { $(id).value = ''; });
-  $('files-n').textContent = '';
+  pageList.forEach(dropPage); pageList = []; renderPages();
   $('preview').hidden = true; editingId = null; $('cancel').hidden = true;
   $('form-title').textContent = '2 · Subir una carátula'; $('publish').textContent = 'Publicar';
 }
@@ -265,20 +322,20 @@ $('publish').onclick = async () => {
       newImgPath = 'imagenes/' + slug(titulo) + '-' + Date.now().toString(36) + '.jpg';
       await gh('PUT', newImgPath, { message: 'Subir imagen: ' + titulo, content: b64, branch: cfg.branch });
     }
-    let pages = (old && old.paginas) || [];
-    let newPages = null;
-    const pf = [...$('files').files].sort((x, y) => x.name.localeCompare(y.name, undefined, { numeric: true }));
-    if (pf.length) {
+    let pages = [];
+    const newCount = pageList.filter((p) => p.kind === 'new').length;
+    let done = 0;
+    if (pageList.length) {
       const folder = 'imagenes/' + slug(titulo) + '-' + Date.now().toString(36) + '/';
-      newPages = [];
-      for (let i = 0; i < pf.length; i++) {
-        say('st-pub', 'Subiendo página ' + (i + 1) + ' de ' + pf.length + '…');
-        const b64 = await compress(pf[i], 1200);
-        const p = folder + String(i + 1).padStart(3, '0') + '.jpg';
-        await putRetry(p, { message: 'Subir página ' + (i + 1) + ': ' + titulo, content: b64, branch: cfg.branch });
-        newPages.push(p);
+      for (let i = 0; i < pageList.length; i++) {
+        const p = pageList[i];
+        if (p.kind === 'old') { pages.push(p.path); continue; }
+        say('st-pub', 'Subiendo página nueva ' + (++done) + ' de ' + newCount + '…');
+        const b64 = await compress(p.file, 1200);
+        const path = folder + String(i + 1).padStart(3, '0') + '.jpg';
+        await putRetry(path, { message: 'Subir página ' + (i + 1) + ': ' + titulo, content: b64, branch: cfg.branch });
+        pages.push(path);
       }
-      pages = newPages;
     }
     say('st-pub', 'Guardando datos…');
     const data = await readData();
@@ -296,7 +353,8 @@ $('publish').onclick = async () => {
     await writeData(list, data.sha, (old ? 'Editar: ' : 'Añadir: ') + titulo);
     items = list;
     if (old && newImgPath && old.imagen && old.imagen !== newImgPath) deleteFile(old.imagen);
-    if (old && newPages && old.paginas && old.paginas.length) (async () => { for (const p of old.paginas) await deleteFile(p); })();
+    const gone = ((old && old.paginas) || []).filter((p) => !pages.includes(p));
+    if (gone.length) (async () => { for (const p of gone) await deleteFile(p); })();
     const cat = $('categoria').value;
     resetForm(); $('categoria').value = cat;
     say('st-pub', '¡Publicado! Aparecerá en la web en uno o dos minutos.', 'ok');
@@ -335,8 +393,9 @@ function startEdit(it) {
   $('categoria').value = it.fila || ''; $('generos').value = (it.generos || []).join(', ');
   $('hashtags').value = (it.hashtags || []).map((t) => '#' + t).join(' '); $('descripcion').value = it.descripcion || '';
   $('file').value = ''; $('preview').src = rawUrl(it.imagen); $('preview').hidden = false;
+  pageList.forEach(dropPage); pageList = (it.paginas || []).map((path) => ({ kind: 'old', path })); renderPages();
   $('form-title').textContent = 'Editando: ' + it.titulo; $('publish').textContent = 'Guardar cambios'; $('cancel').hidden = false;
-  say('st-pub', 'Si no eliges imagen nueva, se conserva la actual.');
+  say('st-pub', 'Si no cambias la portada, se conserva la actual. Los cambios de páginas se guardan al pulsar «Guardar cambios».');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 async function remove(it) {
