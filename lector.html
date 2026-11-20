@@ -13,9 +13,10 @@
 .seg button{border:0;background:none;color:var(--text);padding:9px 14px;cursor:pointer;font-size:.88rem}
 .seg button.on{background:var(--acc);color:#04241b;font-weight:700}
 #view{padding:16px;max-width:1500px;margin:0 auto}
-.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;align-items:start}
+.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px}
 .pg button{position:relative;border:0;padding:0;background:var(--panel);border-radius:var(--r);overflow:hidden;cursor:zoom-in}
-.pg img{width:100%;display:block}
+.pg img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
+.more{display:block;margin:22px auto 0}
 .pg .num{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.72);color:#fff;font-size:.8rem;padding:2px 8px;border-radius:8px}
 .hint2{color:var(--muted);font-size:.85rem;margin:0 0 12px}
 .wt{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:28px;background:var(--panel);padding:28px 0;border-radius:var(--r)}
@@ -134,16 +135,27 @@
     $('m-webtoon').classList.toggle('on', mode === 'webtoon');
     var v = $('view'); v.innerHTML = '';
     if (mode === 'normal') {
+      var PREVIEW = 15;
       var hint = document.createElement('p'); hint.className = 'hint2';
       hint.textContent = 'Haz clic en una imagen para verla a pantalla completa.';
       var grid = document.createElement('div'); grid.className = 'pg';
-      pages.forEach(function (src, i) {
+      var thumb = function (src, i) {
         var b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', 'Abrir página ' + (i + 1));
         var im = document.createElement('img'); im.loading = 'lazy'; im.alt = 'Página ' + (i + 1); im.src = src;
         var n = document.createElement('span'); n.className = 'num'; n.textContent = i + 1;
-        b.append(im, n); b.onclick = function () { openLb(i); }; grid.appendChild(b);
-      });
+        b.append(im, n); b.onclick = function () { openLb(i); }; return b;
+      };
+      pages.slice(0, PREVIEW).forEach(function (src, i) { grid.appendChild(thumb(src, i)); });
       v.append(hint, grid);
+      if (pages.length > PREVIEW) {
+        var more = document.createElement('button'); more.type = 'button'; more.className = 'btn alt more';
+        more.textContent = 'Ver más (' + (pages.length - PREVIEW) + ')';
+        more.onclick = function () {
+          for (var i = PREVIEW; i < pages.length; i++) grid.appendChild(thumb(pages[i], i));
+          more.remove();
+        };
+        v.appendChild(more);
+      }
     } else {
       var col = document.createElement('div'); col.className = 'wt';
       pages.forEach(function (src, i) {
