@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Admin</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.adm{max-width:900px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:18px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.panel h2{margin:0 0 12px;font-size:1.1rem}
+.f{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.f label{font-size:.85rem;color:var(--muted);font-weight:600}
+.f input,.f textarea{padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit}
+.f input:focus,.f textarea:focus{outline:2px solid var(--acc)}
+.f textarea{min-height:110px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.two{grid-template-columns:1fr}}
+.hint{color:var(--muted);font-size:.82rem;line-height:1.45}
+.status{min-height:1.4em;font-weight:600}.ok{color:var(--acc)}.err{color:#ff6b6b}
+.preview{max-width:160px;border-radius:10px;margin-top:6px}
+.items{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.it img{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:10px;background:var(--bg)}
+.it b{display:block;font-size:.85rem;margin:6px 0 4px;line-height:1.2}
+.it .bar{display:flex;gap:6px}
+.it button{flex:1;padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text);cursor:pointer;font-size:.8rem}
+.it button.del{color:#ff6b6b}
+details summary{cursor:pointer;font-weight:700}
+details ol{line-height:1.6;color:var(--muted)}
+.row2{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+</style>
+</head>
+<body>
+<header class="top">
+  <a href="./" class="logo" id="logo">Admin</a>
+  <span class="hint">Panel de administración</span>
+  <a class="btn alt adm-link" href="./" style="margin-left:auto">← Volver a la web</a>
+</header>
+
+<main class="adm">
+
+  <section class="panel" id="p-conn">
+    <h2>1 · Conectar con tu repositorio</h2>
+    <details>
+      <summary>¿Cómo consigo el token? (una sola vez)</summary>
+      <ol>
+        <li>En GitHub: tu foto → <b>Settings</b> → abajo <b>Developer settings</b> → <b>Personal access tokens</b> → <b>Fine-grained tokens</b> → <b>Generate new token</b>.</li>
+        <li>Nombre: <i>admin-web</i>. Caducidad: 90 días.</li>
+        <li><b>Repository access → Only select repositories</b> y elige solo este repositorio.</li>
+        <li><b>Permissions → Repository permissions → Contents → Read and write</b>.</li>
+        <li><b>Generate token</b> y copia el texto (empieza por <code>github_pat_</code>). No lo compartas con nadie.</li>
+      </ol>
+    </details>
+    <div class="two" style="margin-top:12px">
+      <div class="f"><label for="owner">Usuario de GitHub</label><input id="owner" autocomplete="off"></div>
+      <div class="f"><label for="repo">Repositorio</label><input id="repo" autocomplete="off"></div>
+    </div>
+    <div class="two">
+      <div class="f"><label for="branch">Rama</label><input id="branch" value="main" autocomplete="off"></div>
+      <div class="f"><label for="token">Token</label><input id="token" type="password" autocomplete="off" placeholder="github_pat_…"></div>
+    </div>
+    <label class="hint"><input type="checkbox" id="remember"> Recordar el token en este dispositivo (no lo marques en ordenadores compartidos)</label>
+    <div class="row2" style="margin-top:12px">
+      <button class="btn" id="connect">Conectar</button>
+      <button class="btn alt" id="logout" hidden>Cerrar sesión</button>
+    </div>
+    <p class="status" id="st-conn"></p>
+  </section>
+
+  <section class="panel" id="p-form" hidden>
+    <h2 id="form-title">2 · Subir una carátula</h2>
+    <div class="f"><label for="file">Imagen (JPG, PNG o WebP; se reduce automáticamente)</label>
+      <input id="file" type="file" accept="image/*">
+      <img id="preview" class="preview" alt="" hidden>
+    </div>
+    <div class="f"><label for="titulo">Título *</label><input id="titulo" maxlength="120"></div>
+    <div class="two">
+      <div class="f"><label for="anime">Anime</label><input id="anime" maxlength="120"></div>
+      <div class="f"><label for="personaje">Personaje</label><input id="personaje" maxlength="120"></div>
+    </div>
+    <div class="two">
+      <div class="f"><label for="categoria">Categoría (crea una fila en Inicio)</label><input id="categoria" list="cats" maxlength="60" placeholder="Ej.: Destacados"><datalist id="cats"></datalist></div>
+      <div class="f"><label for="generos">Género(s), separados por comas</label><input id="generos" maxlength="200" placeholder="Acción, Fantasía"></div>
+    </div>
+    <div class="f"><label for="hashtags">Hashtags</label><input id="hashtags" maxlength="300" placeholder="#fanart #espadas"></div>
+    <div class="f"><label for="descripcion">Descripción</label><textarea id="descripcion" maxlength="3000"></textarea></div>
+    <div class="row2">
+      <button class="btn" id="publish">Publicar</button>
+      <button class="btn alt" id="cancel" hidden>Cancelar edición</button>
+    </div>
+    <p class="status" id="st-pub"></p>
+    <p class="hint">Al publicar, el cambio se sube a tu repositorio y la web lo muestra en uno o dos minutos (recarga con Ctrl + F5).</p>
+  </section>
+
+  <section class="panel" id="p-list" hidden>
+    <h2>3 · Lo que ya subiste <span class="hint" id="count"></span></h2>
+    <div class="items" id="items"></div>
+    <p class="status" id="st-list"></p>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const CFG_KEY = 'admin:cfg';
+const cfg = { owner: '', repo: '', branch: 'main', token: '' };
+let items = [];
+let editingId = null;
+
+// ---------- Configuración ----------
+(function init() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CFG_KEY) || sessionStorage.getItem(CFG_KEY) || '{}');
+    Object.assign(cfg, saved);
+  } catch (e) {}
+  if (!cfg.owner || !cfg.repo) {
+    const m = location.hostname.match(/^(.+)\.github\.io$/);
+    if (m) { cfg.owner = m[1]; cfg.repo = location.pathname.split('/')[1] || ''; }
+  }
+  $('owner').value = cfg.owner; $('repo').value = cfg.repo; $('branch').value = cfg.branch || 'main';
+  $('token').value = cfg.token || '';
+  $('remember').checked = !!localStorage.getItem(CFG_KEY);
+  if (cfg.token && cfg.owner && cfg.repo) connect();
+})();
+
+function saveCfg() {
+  localStorage.removeItem(CFG_KEY); sessionStorage.removeItem(CFG_KEY);
+  const store = $('remember').checked ? localStorage : sessionStorage;
+  try { store.setItem(CFG_KEY, JSON.stringify(cfg)); } catch (e) {}
+}
+
+function say(id, text, kind) { const el = $(id); el.textContent = text || ''; el.className = 'status ' + (kind || ''); }
+
+// ---------- API de GitHub ----------
+function headers() {
+  return { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+}
+async function gh(method, path, body) {
+  const base = 'https://api.github.com/repos/' + encodeURIComponent(cfg.owner) + '/' + encodeURIComponent(cfg.repo) + '/contents/' + path;
+  const url = method === 'GET' ? base + '?ref=' + encodeURIComponent(cfg.branch) + '&t=' + Date.now() : base;
+  const r = await fetch(url, { method, headers: headers(), body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 404 && method === 'GET') return null;
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    if (r.status === 401) throw new Error('Token no válido o caducado.');
+    if (r.status === 403 || r.status === 404) throw new Error('Sin permiso: revisa que el token tenga Contents → Read and write en este repositorio.');
+    throw new Error(j.message || 'Error ' + r.status);
+  }
+  return j;
+}
+function utf8ToB64(str) {
+  const bytes = new TextEncoder().encode(str); let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+function b64ToUtf8(b64) {
+  const bin = atob(b64.replace(/\s/g, '')); const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+async function readData() {
+  const f = await gh('GET', 'datos.json');
+  if (!f) return { items: [], sha: null };
+  let arr = [];
+  try { arr = JSON.parse(b64ToUtf8(f.content)); } catch (e) { throw new Error('datos.json está dañado.'); }
+  return { items: Array.isArray(arr) ? arr : [], sha: f.sha };
+}
+async function writeData(list, sha, message) {
+  const body = { message, content: utf8ToB64(JSON.stringify(list, null, 2)), branch: cfg.branch };
+  if (sha) body.sha = sha;
+  return gh('PUT', 'datos.json', body);
+}
+
+// ---------- Conexión ----------
+async function connect() {
+  cfg.owner = $('owner').value.trim(); cfg.repo = $('repo').value.trim();
+  cfg.branch = $('branch').value.trim() || 'main'; cfg.token = $('token').value.trim();
+  if (!cfg.owner || !cfg.repo || !cfg.token) { say('st-conn', 'Completa usuario, repositorio y token.', 'err'); return; }
+  say('st-conn', 'Conectando…');
+  try {
+    const r = await fetch('https://api.github.com/repos/' + encodeURIComponent(cfg.owner) + '/' + encodeURIComponent(cfg.repo), { headers: headers() });
+    if (r.status === 401) throw new Error('Token no válido o caducado.');
+    if (!r.ok) throw new Error('No encuentro ese repositorio con ese token.');
+    const j = await r.json();
+    if (j.permissions && !j.permissions.push) throw new Error('El token no tiene permiso de escritura.');
+    saveCfg();
+    const d = await readData(); items = d.items;
+    say('st-conn', 'Conectado a ' + cfg.owner + '/' + cfg.repo, 'ok');
+    $('p-form').hidden = false; $('p-list').hidden = false; $('logout').hidden = false;
+    renderList();
+  } catch (e) { say('st-conn', e.message, 'err'); }
+}
+$('connect').onclick = connect;
+$('logout').onclick = () => {
+  localStorage.removeItem(CFG_KEY); sessionStorage.removeItem(CFG_KEY);
+  cfg.token = ''; $('token').value = ''; $('p-form').hidden = true; $('p-list').hidden = true; $('logout').hidden = true;
+  say('st-conn', 'Sesión cerrada.');
+};
+
+// ---------- Imagen ----------
+function compress(file, maxW) {
+  return new Promise((res, rej) => {
+    const img = new Image(); const u = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(1, maxW / img.width);
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(u); res(c.toDataURL('image/jpeg', 0.85).split(',')[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('No se pudo leer la imagen.')); };
+    img.src = u;
+  });
+}
+$('file').onchange = () => {
+  const f = $('file').files[0]; const p = $('preview');
+  if (!f) { p.hidden = true; return; }
+  p.src = URL.createObjectURL(f); p.hidden = false;
+};
+function slug(s) {
+  return (s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'img').slice(0, 40);
+}
+function parseTags(s) {
+  return [...new Set(s.split(/[\s,]+/).map((t) => t.replace(/^#+/, '').toLowerCase().replace(/[^\p{L}\p{N}_]/gu, '')).filter(Boolean))];
+}
+function parseList(s) { return [...new Set(s.split(',').map((t) => t.trim()).filter(Boolean))]; }
+function rawUrl(path) {
+  return 'https://raw.githubusercontent.com/' + cfg.owner + '/' + cfg.repo + '/' + cfg.branch + '/' + path;
+}
+
+// ---------- Publicar / editar ----------
+function resetForm() {
+  ['file', 'titulo', 'anime', 'personaje', 'generos', 'hashtags', 'descripcion'].forEach((id) => { $(id).value = ''; });
+  $('preview').hidden = true; editingId = null; $('cancel').hidden = true;
+  $('form-title').textContent = '2 · Subir una carátula'; $('publish').textContent = 'Publicar';
+}
+$('cancel').onclick = () => { resetForm(); say('st-pub', ''); };
+
+$('publish').onclick = async () => {
+  const titulo = $('titulo').value.trim();
+  const file = $('file').files[0];
+  if (!titulo) { say('st-pub', 'Escribe un título.', 'err'); return; }
+  if (!editingId && !file) { say('st-pub', 'Elige una imagen.', 'err'); return; }
+  $('publish').disabled = true;
+  let newImgPath = null;
+  try {
+    const old = editingId ? items.find((x) => x.id === editingId) : null;
+    if (file) {
+      say('st-pub', 'Preparando y subiendo la imagen…');
+      const b64 = await compress(file, 700);
+      newImgPath = 'imagenes/' + slug(titulo) + '-' + Date.now().toString(36) + '.jpg';
+      await gh('PUT', newImgPath, { message: 'Subir imagen: ' + titulo, content: b64, branch: cfg.branch });
+    }
+    say('st-pub', 'Guardando datos…');
+    const data = await readData();
+    const entry = {
+      id: old ? old.id : 'u' + Date.now().toString(36),
+      titulo, anime: $('anime').value.trim(), personaje: $('personaje').value.trim(),
+      fila: $('categoria').value.trim() || 'Destacados',
+      generos: parseList($('generos').value), hashtags: parseTags($('hashtags').value),
+      descripcion: $('descripcion').value.trim(),
+      imagen: newImgPath || (old && old.imagen) || ''
+    };
+    let list = data.items;
+    if (old) list = list.map((x) => (x.id === old.id ? entry : x)); else list.push(entry);
+    await writeData(list, data.sha, (old ? 'Editar: ' : 'Añadir: ') + titulo);
+    items = list;
+    if (old && newImgPath && old.imagen && old.imagen !== newImgPath) deleteFile(old.imagen);
+    const cat = $('categoria').value;
+    resetForm(); $('categoria').value = cat;
+    say('st-pub', '¡Publicado! Aparecerá en la web en uno o dos minutos.', 'ok');
+    renderList();
+  } catch (e) {
+    say('st-pub', 'No se pudo publicar: ' + e.message, 'err');
+  }
+  $('publish').disabled = false;
+};
+
+async function deleteFile(path) {
+  try { const f = await gh('GET', path); if (f) await gh('DELETE', path, { message: 'Borrar imagen', sha: f.sha, branch: cfg.branch }); } catch (e) {}
+}
+
+// ---------- Lista ----------
+function renderList() {
+  const box = $('items'); box.innerHTML = '';
+  $('count').textContent = '(' + items.length + ')';
+  const dl = $('cats'); dl.innerHTML = '';
+  [...new Set(items.map((x) => x.fila).filter(Boolean))].forEach((c) => { const o = document.createElement('option'); o.value = c; dl.appendChild(o); });
+  items.forEach((it) => {
+    const d = document.createElement('div'); d.className = 'it';
+    const img = document.createElement('img'); img.loading = 'lazy'; img.alt = ''; img.src = rawUrl(it.imagen);
+    const b = document.createElement('b'); b.textContent = it.titulo;
+    const bar = document.createElement('div'); bar.className = 'bar';
+    const ed = document.createElement('button'); ed.textContent = 'Editar'; ed.onclick = () => startEdit(it);
+    const del = document.createElement('button'); del.className = 'del'; del.textContent = 'Borrar'; del.onclick = () => remove(it);
+    bar.append(ed, del); d.append(img, b, bar); box.appendChild(d);
+  });
+  if (!items.length) say('st-list', 'Todavía no hay nada subido.');
+  else say('st-list', '');
+}
+function startEdit(it) {
+  editingId = it.id;
+  $('titulo').value = it.titulo || ''; $('anime').value = it.anime || ''; $('personaje').value = it.personaje || '';
+  $('categoria').value = it.fila || ''; $('generos').value = (it.generos || []).join(', ');
+  $('hashtags').value = (it.hashtags || []).map((t) => '#' + t).join(' '); $('descripcion').value = it.descripcion || '';
+  $('file').value = ''; $('preview').src = rawUrl(it.imagen); $('preview').hidden = false;
+  $('form-title').textContent = 'Editando: ' + it.titulo; $('publish').textContent = 'Guardar cambios'; $('cancel').hidden = false;
+  say('st-pub', 'Si no eliges imagen nueva, se conserva la actual.');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+async function remove(it) {
+  if (!confirm('¿Borrar «' + it.titulo + '»? No se puede deshacer.')) return;
+  say('st-list', 'Borrando…');
+  try {
+    const data = await readData();
+    const list = data.items.filter((x) => x.id !== it.id);
+    await writeData(list, data.sha, 'Borrar: ' + it.titulo);
+    items = list; deleteFile(it.imagen); renderList();
+    say('st-list', 'Borrado.', 'ok');
+  } catch (e) { say('st-list', 'No se pudo borrar: ' + e.message, 'err'); }
+}
+</script>
+</body>
+</html>

@@ -21,7 +21,7 @@ function normLocal(c,i){
   return {id:String(c.id||('l'+i)), title:String(c.titulo||'Sin título'), cover:String(c.imagen||''),
     score:c.puntuacion?String(c.puntuacion):null, fila:c.fila||'Destacados',
     full:{episodes:c.episodios||null, format:String(c.tipo||''), year:c.anio||null, genres:Array.isArray(c.generos)?c.generos:[],
-      desc:String(c.descripcion||''), url:null,
+      desc:String(c.descripcion||''), url:null, anime:String(c.anime||''), personaje:String(c.personaje||''), hashtags:Array.isArray(c.hashtags)?c.hashtags.map(String):[],
       links:(c.enlaces||[]).filter((l)=>l&&/^https:\/\//.test(l.url)).map((l)=>({site:String(l.texto||'Abrir'),url:l.url,custom:true}))}};
 }
 const LOCAL_ITEMS = LOCAL ? window.CATALOGO.map(normLocal) : [];
@@ -36,7 +36,7 @@ function localFetch(v){
   let items = LOCAL_ITEMS.slice();
   if (v.fila) items = items.filter((m)=>m.fila===v.fila);
   if (v.genre) items = items.filter((m)=>m.full.genres.includes(v.genre));
-  if (v.search){ const q=v.search.toLowerCase(); items = items.filter((m)=>(m.title+' '+m.full.desc).toLowerCase().includes(q)); }
+  if (v.search){ const q=v.search.toLowerCase().replace(/^#/,''); items = items.filter((m)=>[m.title,m.full.desc,m.full.anime,m.full.personaje,m.fila,m.full.genres.join(' '),m.full.hashtags.join(' ')].join(' ').toLowerCase().includes(q)); }
   const start=(v.page-1)*v.perPage;
   return Promise.resolve({items:items.slice(start,start+v.perPage), hasNext:items.length>start+v.perPage});
 }
@@ -168,6 +168,10 @@ function openModal(m){
   const f=m.full||{}; const bits=[];
   if(m.score) bits.push('★ '+m.score); if(f.format) bits.push(String(f.format).replace('_',' ')); if(f.year) bits.push(f.year); if(f.episodes) bits.push(f.episodes+' episodios');
   $('m-meta').textContent=bits.join(' · ');
+  const ex=[]; if(f.anime) ex.push('Anime: '+f.anime); if(f.personaje) ex.push('Personaje: '+f.personaje);
+  $('m-extra').textContent=ex.join(' · '); $('m-extra').hidden=!ex.length;
+  const hb=$('m-hash'); hb.innerHTML='';
+  (f.hashtags||[]).forEach((t)=>{const b=document.createElement('button');b.type='button';b.className='tagbtn';b.textContent='#'+t;b.onclick=()=>{closeModal();$('q').value=t;$('search-form').requestSubmit()};hb.appendChild(b)});
   const tags=$('m-tags'); tags.innerHTML=''; (f.genres||[]).forEach((g)=>{const s=document.createElement('span');s.textContent=GENRES_ES[g]||g;tags.appendChild(s)});
   $('m-desc').textContent=f.desc||'Sin sinopsis disponible.';
   const links=$('m-links'); links.innerHTML='';

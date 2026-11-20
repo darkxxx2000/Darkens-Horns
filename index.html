@@ -14,6 +14,7 @@
   <form id="search-form" class="search" role="search">
     <input id="q" type="search" placeholder="Buscar anime…" autocomplete="off" aria-label="Buscar anime">
   </form>
+  <a class="btn alt adm-link" href="admin.html">🔒 Admin</a>
 </header>
 
 <aside id="side" class="side">
@@ -46,7 +47,9 @@
     <div class="m-body">
       <h2 id="m-title"></h2>
       <p class="meta" id="m-meta"></p>
+      <p class="meta" id="m-extra" hidden></p>
       <div class="tags" id="m-tags"></div>
+      <div class="tags" id="m-hash"></div>
       <p id="m-desc" class="desc"></p>
       <div class="actions">
         <button class="btn" id="b-pend"></button>
@@ -59,6 +62,15 @@
 </div>
 
 <script src="contenido.js"></script>
-<script src="app.js"></script>
+<script>
+// Carga los elementos subidos desde el panel admin (datos.json) y luego arranca la web
+fetch('datos.json?t=' + Date.now(), { cache: 'no-store' })
+  .then(function (r) { return r.ok ? r.json() : []; })
+  .catch(function () { return []; })
+  .then(function (d) {
+    window.CATALOGO = (window.CATALOGO || []).concat(Array.isArray(d) ? d : []);
+    var s = document.createElement('script'); s.src = 'app.js'; document.body.appendChild(s);
+  });
+</script>
 </body>
 </html>

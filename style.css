@@ -62,3 +62,6 @@ main{padding:16px;max-width:1500px;margin:auto}
 .links{display:flex;gap:8px;flex-wrap:wrap}
 .links a{padding:9px 14px;border:1px solid var(--line);border-radius:10px;text-decoration:none;background:var(--panel)}
 @media(max-width:640px){.sheet{flex-direction:column}.sheet img{width:160px;max-width:60%}}
+.adm-link{text-decoration:none;padding:9px 14px;font-size:.85rem;white-space:nowrap}
+.tagbtn{border:1px solid var(--line);background:var(--panel);color:var(--acc);border-radius:999px;padding:4px 11px;font-size:.82rem;cursor:pointer}
+.tagbtn:hover{border-color:var(--acc)}
