@@ -9,7 +9,9 @@ window.SITIO = {
   subtitulo: 'Mi colección',
   buscar: 'Buscar por título, anime, personaje o #hashtag…',
   enlaces: 'Enlaces',
-  nota: 'Colección personal.'
+  nota: 'Colección personal.',
+  // Comentarios (Giscus). Rellena estos 4 datos cuando los tengas; si no, los comentarios no aparecen.
+  giscus: { repo: '', repoId: '', category: '', categoryId: '' }
 };
 
 // Opcional: elementos escritos a mano (se suman a los del panel admin).

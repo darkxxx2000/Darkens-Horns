@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lector</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.rd-top{gap:10px;flex-wrap:wrap}
+.rd-title{display:flex;flex-direction:column;min-width:0;flex:1}
+.rd-title b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:none;color:var(--text);padding:9px 14px;cursor:pointer;font-size:.88rem}
+.seg button.on{background:var(--acc);color:#04241b;font-weight:700}
+#view{padding:16px;max-width:1500px;margin:0 auto}
+.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;align-items:start}
+.pg button{position:relative;border:0;padding:0;background:var(--panel);border-radius:var(--r);overflow:hidden;cursor:zoom-in}
+.pg img{width:100%;display:block}
+.pg .num{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.72);color:#fff;font-size:.8rem;padding:2px 8px;border-radius:8px}
+.hint2{color:var(--muted);font-size:.85rem;margin:0 0 12px}
+.wt{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:28px;background:var(--panel);padding:28px 0;border-radius:var(--r)}
+.wt img{width:100%;display:block;background:var(--bg)}
+.end{max-width:820px;margin:0 auto;padding:90px 16px 60px}
+.end-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:26px}
+.end-actions a,.end-actions button{padding:10px 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--text);text-decoration:none;cursor:pointer;font-size:.92rem}
+.end-actions .liked{background:var(--acc2);color:#2a1800;border-color:var(--acc2);font-weight:700}
+.nocom{border:1px dashed var(--line);border-radius:var(--r);padding:20px;color:var(--muted);text-align:center}
+.notfound{text-align:center;padding:60px 16px}
+/* visor a pantalla completa */
+.lb{position:fixed;inset:0;z-index:100;background:#000}
+.lb[hidden]{display:none}
+.stage{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:pointer}
+.stage img{position:absolute;left:0;top:0;transform-origin:0 0;max-width:none;user-select:none;-webkit-user-drag:none;will-change:transform}
+.lb-bar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:linear-gradient(#000a,#0000);color:#fff;z-index:2;pointer-events:none}
+.lb-bar>*{pointer-events:auto}
+.lb-bar .grp{display:flex;gap:6px}
+.lb-bar button,.lb .nav{background:#000a;color:#fff;border:1px solid #fff3;border-radius:10px;min-width:42px;height:42px;font-size:1.15rem;cursor:pointer}
+.lb .nav{position:absolute;top:50%;transform:translateY(-50%);z-index:2;font-size:1.8rem}
+.lb .nav:disabled{opacity:.25;cursor:default}
+.lb .prev{left:10px}.lb .next{right:10px}
+.lb-hint{position:absolute;bottom:10px;left:0;right:0;text-align:center;color:#fffa;font-size:.8rem;z-index:2;pointer-events:none;padding:0 70px}
+</style>
+</head>
+<body>
+<header class="top rd-top">
+  <a class="btn alt adm-link" href="./">← Volver</a>
+  <div class="rd-title"><b id="t">Cargando…</b><span class="hint" id="sub" style="font-size:.8rem;color:var(--muted)"></span></div>
+  <div class="seg" id="seg" hidden>
+    <button id="m-normal" type="button">Lectura normal</button>
+    <button id="m-webtoon" type="button">Modo Webtoon</button>
+  </div>
+</header>
+
+<main id="view"></main>
+
+<section class="end" id="end" hidden>
+  <div class="end-actions">
+    <button id="like" type="button">♡ Me gusta</button>
+    <span class="hint" style="color:var(--muted);font-size:.85rem">Compartir:</span>
+    <a id="sh-x" target="_blank" rel="noopener noreferrer">X / Twitter</a>
+    <a id="sh-rd" target="_blank" rel="noopener noreferrer">Reddit</a>
+    <a id="sh-fb" target="_blank" rel="noopener noreferrer">Facebook</a>
+    <button id="sh-copy" type="button">Copiar enlace</button>
+  </div>
+  <div id="comments"></div>
+</section>
+
+<div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Visor de imágenes">
+  <div class="stage" id="stage"><img id="lb-img" alt="" draggable="false"></div>
+  <div class="lb-bar">
+    <span id="lb-count"></span>
+    <div class="grp">
+      <button id="z-out" type="button" aria-label="Alejar">−</button>
+      <button id="z-in" type="button" aria-label="Acercar">+</button>
+      <button id="z-reset" type="button" aria-label="Tamaño original">1:1</button>
+      <button id="fs" type="button" aria-label="Pantalla completa del navegador">⛶</button>
+      <button id="lb-close" type="button" aria-label="Cerrar">✕</button>
+    </div>
+  </div>
+  <button class="nav prev" id="lb-prev" type="button" aria-label="Anterior">‹</button>
+  <button class="nav next" id="lb-next" type="button" aria-label="Siguiente">›</button>
+  <div class="lb-hint">Clic a la izquierda: anterior · clic a la derecha: siguiente · rueda: zoom · arrastra para mover</div>
+</div>
+
+<script src="contenido.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var SITIO = window.SITIO || {};
+  var id = new URLSearchParams(location.search).get('id') || '';
+  var item = null, pages = [], mode = 'normal';
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  fetch('datos.json?t=' + Date.now(), { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : []; })
+    .catch(function () { return []; })
+    .then(function (d) {
+      var all = (window.CATALOGO || []).concat(Array.isArray(d) ? d : []);
+      for (var i = 0; i < all.length; i++) {
+        if (String(all[i].id || ('l' + i)) === id) { item = all[i]; break; }
+      }
+      init();
+    });
+
+  function notFound() {
+    $('t').textContent = 'Contenido no encontrado';
+    var v = $('view'); v.innerHTML = '';
+    var d = document.createElement('div'); d.className = 'notfound';
+    var p = document.createElement('p'); p.textContent = 'No encontramos este contenido, o todavía no tiene páginas.';
+    var a = document.createElement('a'); a.className = 'btn'; a.href = './'; a.textContent = 'Volver al inicio';
+    d.append(p, a); v.appendChild(d);
+  }
+
+  function init() {
+    pages = item && Array.isArray(item.paginas) ? item.paginas.filter(function (p) { return typeof p === 'string' && p; }) : [];
+    if (!item || !pages.length) { notFound(); return; }
+    var titulo = String(item.titulo || 'Sin título');
+    $('t').textContent = titulo;
+    $('sub').textContent = [item.anime, item.personaje].filter(Boolean).join(' · ') + (pages.length ? ' · ' + pages.length + ' páginas' : '');
+    document.title = titulo + ' · ' + (SITIO.nombre || '') + (SITIO.destacado || '');
+    $('seg').hidden = false; $('end').hidden = false;
+    mode = lsGet('lector:modo') === 'webtoon' ? 'webtoon' : 'normal';
+    $('m-normal').onclick = function () { setMode('normal'); };
+    $('m-webtoon').onclick = function () { setMode('webtoon'); };
+    render(); setupEnd(titulo);
+  }
+
+  function setMode(m) { mode = m; lsSet('lector:modo', m); render(); window.scrollTo(0, 0); }
+
+  function render() {
+    $('m-normal').classList.toggle('on', mode === 'normal');
+    $('m-webtoon').classList.toggle('on', mode === 'webtoon');
+    var v = $('view'); v.innerHTML = '';
+    if (mode === 'normal') {
+      var hint = document.createElement('p'); hint.className = 'hint2';
+      hint.textContent = 'Haz clic en una imagen para verla a pantalla completa.';
+      var grid = document.createElement('div'); grid.className = 'pg';
+      pages.forEach(function (src, i) {
+        var b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', 'Abrir página ' + (i + 1));
+        var im = document.createElement('img'); im.loading = 'lazy'; im.alt = 'Página ' + (i + 1); im.src = src;
+        var n = document.createElement('span'); n.className = 'num'; n.textContent = i + 1;
+        b.append(im, n); b.onclick = function () { openLb(i); }; grid.appendChild(b);
+      });
+      v.append(hint, grid);
+    } else {
+      var col = document.createElement('div'); col.className = 'wt';
+      pages.forEach(function (src, i) {
+        var im = document.createElement('img'); im.loading = 'lazy'; im.decoding = 'async'; im.alt = 'Página ' + (i + 1); im.src = src;
+        col.appendChild(im);
+      });
+      v.appendChild(col);
+    }
+  }
+
+  // ---------- Final: me gusta, compartir, comentarios ----------
+  function setupEnd(titulo) {
+    var likeKey = 'lector:like:' + id;
+    var likeBtn = $('like');
+    function paintLike() {
+      var on = lsGet(likeKey) === '1';
+      likeBtn.textContent = on ? '♥ Te gusta' : '♡ Me gusta';
+      likeBtn.classList.toggle('liked', on);
+    }
+    likeBtn.onclick = function () { lsSet(likeKey, lsGet(likeKey) === '1' ? '0' : '1'); paintLike(); };
+    paintLike();
+
+    var url = location.origin + location.pathname + '?id=' + encodeURIComponent(id);
+    var u = encodeURIComponent(url), t = encodeURIComponent(titulo);
+    $('sh-x').href = 'https://twitter.com/intent/tweet?url=' + u + '&text=' + t;
+    $('sh-rd').href = 'https://www.reddit.com/submit?url=' + u + '&title=' + t;
+    $('sh-fb').href = 'https://www.facebook.com/sharer/sharer.php?u=' + u;
+    $('sh-copy').onclick = function () {
+      var b = $('sh-copy');
+      function ok() { b.textContent = '¡Copiado!'; setTimeout(function () { b.textContent = 'Copiar enlace'; }, 1800); }
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, function () { prompt('Copia este enlace:', url); });
+      else prompt('Copia este enlace:', url);
+    };
+
+    var g = SITIO.giscus || {};
+    var box = $('comments');
+    if (g.repo && g.repoId && g.category && g.categoryId) {
+      var s = document.createElement('script');
+      s.src = 'https://giscus.app/client.js'; s.async = true; s.crossOrigin = 'anonymous';
+      var attrs = {
+        'data-repo': g.repo, 'data-repo-id': g.repoId, 'data-category': g.category, 'data-category-id': g.categoryId,
+        'data-mapping': 'specific', 'data-term': 'contenido-' + id, 'data-strict': '0', 'data-reactions-enabled': '1',
+        'data-emit-metadata': '0', 'data-input-position': 'top', 'data-theme': 'preferred_color_scheme',
+        'data-lang': 'es', 'data-loading': 'lazy'
+      };
+      Object.keys(attrs).forEach(function (k) { s.setAttribute(k, attrs[k]); });
+      box.appendChild(s);
+    } else {
+      var n = document.createElement('div'); n.className = 'nocom'; n.textContent = 'Los comentarios todavía no están activados.';
+      box.appendChild(n);
+    }
+  }
+
+  // ---------- Visor a pantalla completa ----------
+  var lb = $('lb'), stage = $('stage'), img = $('lb-img');
+  var cur = 0, s = 1, tx = 0, ty = 0, baseW = 0, baseH = 0, MAXZ = 8;
+
+  function vw() { return stage.clientWidth; }
+  function vh() { return stage.clientHeight; }
+  function clampPos() {
+    var w = baseW * s, h = baseH * s;
+    tx = w <= vw() ? (vw() - w) / 2 : Math.min(0, Math.max(vw() - w, tx));
+    ty = h <= vh() ? (vh() - h) / 2 : Math.min(0, Math.max(vh() - h, ty));
+  }
+  function apply() { img.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')'; }
+  function layout() {
+    if (!img.naturalWidth) return;
+    var f = Math.min(vw() / img.naturalWidth, vh() / img.naturalHeight);
+    baseW = img.naturalWidth * f; baseH = img.naturalHeight * f;
+    img.style.width = baseW + 'px'; img.style.height = baseH + 'px';
+    s = 1; clampPos(); apply();
+  }
+  function zoomAt(px, py, factor) {
+    var ns = Math.min(MAXZ, Math.max(1, s * factor)), r = ns / s;
+    tx = px - (px - tx) * r; ty = py - (py - ty) * r; s = ns; clampPos(); apply();
+  }
+  function zoomCenter(f) { zoomAt(vw() / 2, vh() / 2, f); }
+
+  function show(i) {
+    cur = i; s = 1;
+    img.onload = layout;
+    img.src = pages[i];
+    $('lb-count').textContent = (i + 1) + ' / ' + pages.length;
+    $('lb-prev').disabled = i === 0; $('lb-next').disabled = i === pages.length - 1;
+    if (pages[i + 1]) { var pre = new Image(); pre.src = pages[i + 1]; }
+    if (img.complete && img.naturalWidth) layout();
+  }
+  function go(d) { var n = cur + d; if (n < 0 || n >= pages.length) return; show(n); }
+  function openLb(i) { lb.hidden = false; document.body.style.overflow = 'hidden'; show(i); }
+  function closeLb() {
+    lb.hidden = true; document.body.style.overflow = '';
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
+  }
+
+  $('lb-close').onclick = closeLb;
+  $('lb-prev').onclick = function () { go(-1); };
+  $('lb-next').onclick = function () { go(1); };
+  $('z-in').onclick = function () { zoomCenter(1.4); };
+  $('z-out').onclick = function () { zoomCenter(1 / 1.4); };
+  $('z-reset').onclick = function () { s = 1; clampPos(); apply(); };
+  $('fs').onclick = function () {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else if (lb.requestFullscreen) lb.requestFullscreen().catch(function () {});
+  };
+  document.addEventListener('keydown', function (e) {
+    if (lb.hidden) return;
+    if (e.key === 'Escape') closeLb();
+    else if (e.key === 'ArrowRight') go(1);
+    else if (e.key === 'ArrowLeft') go(-1);
+    else if (e.key === '+' || e.key === '=') zoomCenter(1.4);
+    else if (e.key === '-') zoomCenter(1 / 1.4);
+    else if (e.key === '0') { s = 1; clampPos(); apply(); }
+  });
+  window.addEventListener('resize', function () { if (!lb.hidden) layout(); });
+  document.addEventListener('fullscreenchange', function () { if (!lb.hidden) setTimeout(layout, 60); });
+
+  stage.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var r = stage.getBoundingClientRect();
+    zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.2 : 1 / 1.2);
+  }, { passive: false });
+
+  var ptrs = new Map(), startPan = null, pinch = null, moved = false;
+  stage.addEventListener('pointerdown', function (e) {
+    stage.setPointerCapture(e.pointerId);
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 1) { startPan = { x: e.clientX, y: e.clientY, tx: tx, ty: ty }; moved = false; }
+    else if (ptrs.size === 2) {
+      var p = Array.from(ptrs.values());
+      pinch = { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), s: s };
+      startPan = null; moved = true;
+    }
+  });
+  stage.addEventListener('pointermove', function (e) {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 2 && pinch) {
+      var p = Array.from(ptrs.values()), r = stage.getBoundingClientRect();
+      var d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      zoomAt((p[0].x + p[1].x) / 2 - r.left, (p[0].y + p[1].y) / 2 - r.top, (pinch.s * d / pinch.d) / s);
+    } else if (ptrs.size === 1 && startPan) {
+      var dx = e.clientX - startPan.x, dy = e.clientY - startPan.y;
+      if (Math.abs(dx) + Math.abs(dy) > 5) moved = true;
+      if (moved && s > 1) { tx = startPan.tx + dx; ty = startPan.ty + dy; clampPos(); apply(); }
+    }
+  });
+  stage.addEventListener('pointerup', function (e) {
+    var single = ptrs.size === 1;
+    ptrs.delete(e.pointerId);
+    if (ptrs.size < 2) pinch = null;
+    if (single && startPan && !moved) {
+      var r = stage.getBoundingClientRect();
+      if (e.clientX - r.left < r.width * 0.35) go(-1); else go(1);
+    }
+    if (ptrs.size === 0) startPan = null;
+  });
+  stage.addEventListener('pointercancel', function (e) { ptrs.delete(e.pointerId); pinch = null; startPan = null; });
+})();
+</script>
+</body>
+</html>

@@ -21,7 +21,7 @@ function normLocal(c,i){
   return {id:String(c.id||('l'+i)), title:String(c.titulo||'Sin título'), cover:String(c.imagen||''),
     score:c.puntuacion?String(c.puntuacion):null, fila:c.fila||'Destacados',
     full:{episodes:c.episodios||null, format:String(c.tipo||''), year:c.anio||null, genres:Array.isArray(c.generos)?c.generos:[],
-      desc:String(c.descripcion||''), url:null, anime:String(c.anime||''), personaje:String(c.personaje||''), hashtags:Array.isArray(c.hashtags)?c.hashtags.map(String):[],
+      desc:String(c.descripcion||''), url:null, anime:String(c.anime||''), personaje:String(c.personaje||''), hashtags:Array.isArray(c.hashtags)?c.hashtags.map(String):[], paginas:Array.isArray(c.paginas)?c.paginas.map(String).filter(Boolean):[],
       links:(c.enlaces||[]).filter((l)=>l&&/^https:\/\//.test(l.url)).map((l)=>({site:String(l.texto||'Abrir'),url:l.url,custom:true}))}};
 }
 const LOCAL_ITEMS = LOCAL ? window.CATALOGO.map(normLocal) : [];
@@ -178,6 +178,7 @@ function openModal(m){
   (f.links||[]).forEach((l)=>links.appendChild(link('Ver en '+l.site,l.url)));
   if(f.url) links.appendChild(link('Ficha en AniList',f.url));
   if(!links.children.length) links.textContent='No hay enlaces oficiales registrados.';
+  const rd=$('b-read'); const np=(f.paginas||[]).length; rd.hidden=!np; if(np) rd.href='lector.html?id='+encodeURIComponent(m.id);
   syncButtons(); $('modal').hidden=false; $('close').focus(); document.body.style.overflow='hidden';
 }
 function link(t,u){const a=document.createElement('a');a.textContent=t;a.href=u;a.target='_blank';a.rel='noopener noreferrer';return a}
