@@ -81,7 +81,7 @@
     });
   }
   // ---------- Barra lateral: Types, Genres, Anime, Characters ----------
-  var openState = {};
+  var openState = {}, expandState = {};
   function counts(getter) {
     var m = {};
     items.forEach(function (it) {
@@ -101,14 +101,24 @@
       var s = el('summary', null, title); s.appendChild(el('span', 'cnt', String(list.length))); d.appendChild(s);
       var wrap = el('div', 'slist');
       if (!list.length) wrap.appendChild(el('p', 'empty', 'Nothing here yet.'));
-      list.forEach(function (g) {
+      var LIMIT = 8, activeIdx = -1;
+      list.forEach(function (g, idx) { if (r.k === k && eq(r.v, g.label)) activeIdx = idx; });
+      var expanded = !!expandState[title] || activeIdx >= LIMIT;
+      list.forEach(function (g, idx) {
+        if (!expanded && idx >= LIMIT) return;
         var a2 = el('a', 'slink' + (r.k === k && eq(r.v, g.label) ? ' on' : ''));
         a2.href = '#' + k + '=' + encodeURIComponent(g.label);
         if (g.color) { var i = el('i'); i.style.background = g.color; a2.appendChild(i); }
+        a2.title = g.label;
         a2.append(el('span', 'lbl', g.label), el('span', 'n', String(g.n)));
         a2.onclick = function (e) { e.preventDefault(); closeSide(); nav(k, g.label); };
         wrap.appendChild(a2);
       });
+      if (list.length > LIMIT && activeIdx < LIMIT) {
+        var more = el('button', 'smore', expanded ? 'Show less' : 'Show more (' + (list.length - LIMIT) + ')'); more.type = 'button';
+        more.onclick = function () { expandState[title] = !expanded; renderSide(r); };
+        wrap.appendChild(more);
+      }
       d.appendChild(wrap); box.appendChild(d);
     }
     group('Types', C.TYPES.map(function (t) { return { label: t.name, color: t.color, n: items.filter(function (i) { return i.type === t.name; }).length }; }), 'type');

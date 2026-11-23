@@ -110,10 +110,10 @@ main{padding:16px;max-width:1500px;margin:auto}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#000d;color:#fff;padding:10px 16px;border-radius:12px;z-index:200;max-width:90vw;font-size:.92rem}
 
 /* ===== page layout: sidebar (left) · content · notice (right) ===== */
-.layout{display:grid;gap:20px;align-items:start;max-width:1700px;margin:0 auto;padding:16px;grid-template-columns:250px minmax(0,1fr);grid-template-areas:"side main"}
-.layout.has-notice{grid-template-columns:250px minmax(0,1fr) 250px;grid-template-areas:"side main notice"}
+.layout{display:grid;gap:20px;align-items:start;max-width:1700px;margin:0 auto;padding:16px;grid-template-columns:190px minmax(0,1fr);grid-template-areas:"side main"}
+.layout.has-notice{grid-template-columns:190px minmax(0,1fr) 250px;grid-template-areas:"side main notice"}
 .layout main{grid-area:main;padding:0;max-width:none;margin:0;min-width:0}
-.side{grid-area:side;position:sticky;top:76px;max-height:calc(100vh - 92px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:8px 10px}
+.side{grid-area:side;position:static;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:6px 8px}
 .side-head{display:none}
 .sgroup{border-bottom:1px solid var(--line);padding:4px 0}
 .sgroup:last-child{border-bottom:0}
@@ -122,9 +122,9 @@ main{padding:16px;max-width:1500px;margin:auto}
 .sgroup summary::before{content:'▸';display:inline-block;transition:transform .15s;color:var(--muted)}
 .sgroup[open] summary::before{transform:rotate(90deg)}
 .sgroup .cnt{margin-left:auto;font-size:.72rem;font-weight:700;background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:1px 8px;color:var(--muted)}
-.slist{max-height:250px;overflow:auto;display:flex;flex-direction:column;gap:2px;padding:2px 0 8px}
+.slist{display:flex;flex-direction:column;gap:2px;padding:2px 0 8px}
 .slist .empty{margin:6px;color:var(--muted);font-size:.85rem}
-.slink{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;color:var(--text);text-decoration:none;font-size:.9rem}
+.slink{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:8px;color:var(--text);text-decoration:none;font-size:.85rem}
 .slink:hover{background:var(--bg)}
 .slink.on{background:var(--acc);color:#04241b;font-weight:700}
 .slink i{width:9px;height:9px;border-radius:50%;flex:none}
@@ -139,13 +139,13 @@ main{padding:16px;max-width:1500px;margin:auto}
 .top{flex-wrap:wrap}
 
 @media(max-width:1249px){
-  .layout.has-notice{grid-template-columns:250px minmax(0,1fr);grid-template-areas:"side notice" "side main"}
+  .layout.has-notice{grid-template-columns:190px minmax(0,1fr);grid-template-areas:"side notice" "side main"}
   .notice{position:static;width:170px}
 }
 @media(max-width:999px){
   .layout,.layout.has-notice{grid-template-columns:minmax(0,1fr);grid-template-areas:"notice" "main";padding:12px}
   .menu-btn{display:inline-block}
-  .side{position:fixed;top:0;left:0;bottom:0;width:290px;max-width:86vw;max-height:none;border-radius:0;border-width:0 1px 0 0;z-index:70;transform:translateX(-105%);transition:transform .22s;padding:10px 12px}
+  .side{position:fixed;top:0;left:0;bottom:0;width:260px;max-width:86vw;overflow-y:auto;scrollbar-width:none;border-radius:0;border-width:0 1px 0 0;z-index:70;transform:translateX(-105%);transition:transform .22s;padding:10px 12px}
   body.side-open .side{transform:none}
   body.side-open .backdrop{display:block}
   .side-head{display:flex;justify-content:space-between;align-items:center;padding:4px 6px 10px}
@@ -163,3 +163,7 @@ main{padding:16px;max-width:1500px;margin:auto}
   .modal{padding:8px}.sheet{padding:14px;max-height:94vh}
 }
 @media(prefers-reduced-motion:reduce){.side,.notice a{transition:none}}
+
+.smore{display:block;width:100%;margin:2px 0 6px;padding:6px 8px;border:0;border-radius:8px;background:none;color:var(--acc);font-size:.8rem;font-weight:700;text-align:left;cursor:pointer}
+.smore:hover{background:var(--bg)}
+.side::-webkit-scrollbar{display:none}
