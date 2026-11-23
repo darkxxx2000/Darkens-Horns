@@ -12,8 +12,8 @@
 .panel h2{margin:0 0 12px;font-size:1.1rem}
 .f{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
 .f label{font-size:.85rem;color:var(--muted);font-weight:600}
-.f input,.f textarea{padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit}
-.f input:focus,.f textarea:focus{outline:2px solid var(--acc)}
+.f input,.f textarea,.f select{padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit}
+.f input:focus,.f textarea:focus,.f select:focus{outline:2px solid var(--acc)}
 .f textarea{min-height:110px;resize:vertical}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media(max-width:640px){.two{grid-template-columns:1fr}}
@@ -95,11 +95,20 @@ details ol{line-height:1.6;color:var(--muted)}
       <div class="f"><label for="personaje">Personaje</label><input id="personaje" maxlength="120"></div>
     </div>
     <div class="two">
-      <div class="f"><label for="categoria">Categoría (crea una fila en Inicio)</label><input id="categoria" list="cats" maxlength="60" placeholder="Ej.: Destacados"><datalist id="cats"></datalist></div>
+      <div class="f"><label for="tipo">Tipo (se muestra como etiqueta de color y en la barra de pestañas) *</label>
+        <select id="tipo">
+          <option value="Comic">Comic (rojo)</option>
+          <option value="Gallery">Gallery (azul)</option>
+          <option value="Post">Post (verde)</option>
+          <option value="Light Novel">Light Novel (naranja)</option>
+          <option value="Video">Video (violeta)</option>
+          <option value="Contact">Contact (gris)</option>
+        </select></div>
       <div class="f"><label for="generos">Género(s), separados por comas</label><input id="generos" maxlength="200" placeholder="Acción, Fantasía"></div>
     </div>
-    <div class="f"><label for="hashtags">Hashtags</label><input id="hashtags" maxlength="300" placeholder="#fanart #espadas"></div>
-    <div class="f"><label for="descripcion">Descripción</label><textarea id="descripcion" maxlength="3000"></textarea></div>
+    <div class="f"><label for="hashtags">Hashtags (solo para SEO / Google; NO se muestran al público)</label><input id="hashtags" maxlength="300" placeholder="#fanart #espadas"></div>
+    <div class="f"><label for="video">Video de YouTube (opcional, sobre todo para el tipo Video)</label><input id="video" maxlength="200" placeholder="https://www.youtube.com/watch?v=…"></div>
+    <div class="f"><label for="descripcion">Descripción (en inglés)</label><textarea id="descripcion" maxlength="3000"></textarea></div>
     <div class="row2">
       <button class="btn" id="publish">Publicar</button>
       <button class="btn alt" id="cancel" hidden>Cancelar edición</button>
@@ -121,6 +130,8 @@ const CFG_KEY = 'admin:cfg';
 const cfg = { owner: '', repo: '', branch: 'main', token: '' };
 let items = [];
 let editingId = null;
+const TYPE_MAP = { comic: 'Comic', 'cómic': 'Comic', gallery: 'Gallery', 'galería': 'Gallery', galeria: 'Gallery', post: 'Post', 'novela ligera': 'Light Novel', 'light novel': 'Light Novel', video: 'Video', 'vídeo': 'Video', contacto: 'Contact', contact: 'Contact' };
+function typeFromLegacy(it) { return TYPE_MAP[String(it.tipo || '').toLowerCase()] || TYPE_MAP[String(it.fila || '').toLowerCase()] || 'Comic'; }
 
 // ---------- Configuración ----------
 (function init() {
@@ -300,7 +311,7 @@ function rawUrl(path) {
 
 // ---------- Publicar / editar ----------
 function resetForm() {
-  ['file', 'files', 'titulo', 'anime', 'personaje', 'generos', 'hashtags', 'descripcion'].forEach((id) => { $(id).value = ''; });
+  ['file', 'files', 'titulo', 'anime', 'personaje', 'generos', 'hashtags', 'video', 'descripcion'].forEach((id) => { $(id).value = ''; });
   pageList.forEach(dropPage); pageList = []; renderPages();
   $('preview').hidden = true; editingId = null; $('cancel').hidden = true;
   $('form-title').textContent = '2 · Subir una carátula'; $('publish').textContent = 'Publicar';
@@ -342,7 +353,7 @@ $('publish').onclick = async () => {
     const entry = {
       id: old ? old.id : 'u' + Date.now().toString(36),
       titulo, anime: $('anime').value.trim(), personaje: $('personaje').value.trim(),
-      fila: $('categoria').value.trim() || 'Destacados',
+      tipo: $('tipo').value, fecha: (old && old.fecha) || (old ? 0 : Date.now()), video: $('video').value.trim(),
       generos: parseList($('generos').value), hashtags: parseTags($('hashtags').value),
       descripcion: $('descripcion').value.trim(),
       imagen: newImgPath || (old && old.imagen) || '',
@@ -355,8 +366,8 @@ $('publish').onclick = async () => {
     if (old && newImgPath && old.imagen && old.imagen !== newImgPath) deleteFile(old.imagen);
     const gone = ((old && old.paginas) || []).filter((p) => !pages.includes(p));
     if (gone.length) (async () => { for (const p of gone) await deleteFile(p); })();
-    const cat = $('categoria').value;
-    resetForm(); $('categoria').value = cat;
+    const ty = $('tipo').value;
+    resetForm(); $('tipo').value = ty;
     say('st-pub', '¡Publicado! Aparecerá en la web en uno o dos minutos.', 'ok');
     renderList();
   } catch (e) {
@@ -373,12 +384,10 @@ async function deleteFile(path) {
 function renderList() {
   const box = $('items'); box.innerHTML = '';
   $('count').textContent = '(' + items.length + ')';
-  const dl = $('cats'); dl.innerHTML = '';
-  [...new Set(items.map((x) => x.fila).filter(Boolean))].forEach((c) => { const o = document.createElement('option'); o.value = c; dl.appendChild(o); });
   items.forEach((it) => {
     const d = document.createElement('div'); d.className = 'it';
     const img = document.createElement('img'); img.loading = 'lazy'; img.alt = ''; img.src = rawUrl(it.imagen);
-    const b = document.createElement('b'); b.textContent = it.titulo + (it.paginas && it.paginas.length ? ' · ' + it.paginas.length + ' pág.' : '');
+    const b = document.createElement('b'); b.textContent = it.titulo + ' · ' + typeFromLegacy(it) + (it.paginas && it.paginas.length ? ' · ' + it.paginas.length + ' pág.' : '');
     const bar = document.createElement('div'); bar.className = 'bar';
     const ed = document.createElement('button'); ed.textContent = 'Editar'; ed.onclick = () => startEdit(it);
     const del = document.createElement('button'); del.className = 'del'; del.textContent = 'Borrar'; del.onclick = () => remove(it);
@@ -390,7 +399,7 @@ function renderList() {
 function startEdit(it) {
   editingId = it.id;
   $('titulo').value = it.titulo || ''; $('anime').value = it.anime || ''; $('personaje').value = it.personaje || '';
-  $('categoria').value = it.fila || ''; $('generos').value = (it.generos || []).join(', ');
+  $('tipo').value = typeFromLegacy(it); $('video').value = it.video || ''; $('generos').value = (it.generos || []).join(', ');
   $('hashtags').value = (it.hashtags || []).map((t) => '#' + t).join(' '); $('descripcion').value = it.descripcion || '';
   $('file').value = ''; $('preview').src = rawUrl(it.imagen); $('preview').hidden = false;
   pageList.forEach(dropPage); pageList = (it.paginas || []).map((path) => ({ kind: 'old', path })); renderPages();

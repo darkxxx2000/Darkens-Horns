@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    // Public profile (nickname + small photo). Each user can only edit their own.
+    match /profiles/{uid} {
+      allow read: if true;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['name', 'photo', 'updated'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 24
+        && request.resource.data.photo is string && request.resource.data.photo.size() <= 40000
+        && request.resource.data.updated is number;
+      allow delete: if false;
+    }
+
+    // One document per like: "<postId>_<uid>". Each user can only read/create/delete their own.
+    match /likes/{likeId} {
+      allow get: if signedIn() && (resource == null || resource.data.uid == request.auth.uid);
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['post', 'uid', 'created'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.post is string
+        && likeId == request.resource.data.post + '_' + request.auth.uid
+        && request.resource.data.created is number;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow update: if false;
+    }
+
+    // Like counter per post. It can only move by exactly 1, together with the user's own like document.
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['likes'])
+        && request.resource.data.likes == 1
+        && existsAfter(/databases/$(database)/documents/likes/$(postId + '_' + request.auth.uid));
+      allow update: if signedIn()
+        && request.resource.data.keys().hasOnly(['likes'])
+        && (
+          (request.resource.data.likes == resource.data.likes + 1
+            && existsAfter(/databases/$(database)/documents/likes/$(postId + '_' + request.auth.uid))
+            && !exists(/databases/$(database)/documents/likes/$(postId + '_' + request.auth.uid)))
+          ||
+          (request.resource.data.likes == resource.data.likes - 1
+            && !existsAfter(/databases/$(database)/documents/likes/$(postId + '_' + request.auth.uid))
+            && exists(/databases/$(database)/documents/likes/$(postId + '_' + request.auth.uid)))
+        );
+      allow delete: if false;
+    }
+
+    // Comments: anyone can read, only signed-in users can write, authors can delete their own.
+    match /comments/{commentId} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['post', 'uid', 'text', 'created'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.post is string && request.resource.data.post.size() <= 100
+        && request.resource.data.text is string
+        && request.resource.data.text.size() >= 1 && request.resource.data.text.size() <= 1000
+        && request.resource.data.created is number;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow update: if false;
+    }
+  }
+}

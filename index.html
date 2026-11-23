@@ -1,77 +1,52 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mirador · Catálogo de anime</title>
-<meta name="description" content="Descubre anime: tendencias, populares y mejor valorados, con enlaces a plataformas oficiales.">
+<title>My Catalog</title>
+<meta name="description" content="Comics, galleries, posts, light novels and videos.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="top">
-  <button class="icon" id="menu" aria-label="Menú">☰</button>
-  <a href="#" class="logo" id="logo">Mira<span>dor</span></a>
+  <a href="#" class="logo" id="logo">My<span>Catalog</span></a>
   <form id="search-form" class="search" role="search">
-    <input id="q" type="search" placeholder="Buscar anime…" autocomplete="off" aria-label="Buscar anime">
+    <input id="q" type="search" placeholder="Search…" autocomplete="off" aria-label="Search">
   </form>
-  <a class="btn alt adm-link" href="admin.html">🔒 Admin</a>
+  <div class="auth" id="auth"></div>
 </header>
 
-<aside id="side" class="side">
-  <nav>
-    <button data-view="home" class="active">🏠 Inicio</button>
-    <button data-view="trending">🔥 Tendencias</button>
-    <button data-view="popular">⭐ Populares</button>
-    <button data-view="top">🏆 Mejor valorados</button>
-    <button data-view="airing">📡 En emisión</button>
-    <button data-view="random">🎲 Aleatorio</button>
-    <hr>
-    <button data-view="pend">🕒 Mis pendientes <b id="n-pend">0</b></button>
-    <button data-view="visto">✅ Vistos <b id="n-visto">0</b></button>
-  </nav>
-  <p class="note" id="note">Mirador no aloja vídeos. Cada ficha enlaza a plataformas oficiales. Datos de <a href="https://anilist.co" target="_blank" rel="noopener noreferrer">AniList</a>.</p>
-</aside>
+<nav class="tabs" id="tabs" aria-label="Sections"></nav>
 
 <main>
-  <div class="chips" id="chips"></div>
-  <h1 id="title" class="sr">Inicio</h1>
+  <div class="chips" id="chips" aria-label="Genres"></div>
+  <h1 id="title" class="sr">Home</h1>
   <div id="content"></div>
   <p id="msg" class="msg" role="status"></p>
-  <button id="more" class="btn" hidden>Cargar más</button>
 </main>
+
+<footer class="foot"><a href="admin.html">Admin</a></footer>
 
 <div id="modal" class="modal" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="m-title">
-    <button class="icon close" id="close" aria-label="Cerrar">✕</button>
+    <button class="icon close" id="close" aria-label="Close">✕</button>
     <img id="m-img" alt="">
     <div class="m-body">
+      <span id="m-type"></span>
       <h2 id="m-title"></h2>
       <p class="meta" id="m-meta"></p>
-      <p class="meta" id="m-extra" hidden></p>
       <div class="tags" id="m-tags"></div>
-      <div class="tags" id="m-hash"></div>
       <p id="m-desc" class="desc"></p>
       <div class="actions">
-        <a class="btn" id="b-read" href="#" hidden>📖 Leer</a>
-        <button class="btn alt" id="b-pend"></button>
-        <button class="btn alt" id="b-visto"></button>
+        <a class="btn" id="b-read" href="#" hidden>📖 Read</a>
       </div>
-      <h3 id="h-links">Dónde verlo (oficial)</h3>
-      <div class="links" id="m-links"></div>
     </div>
   </div>
 </div>
 
 <script src="contenido.js"></script>
-<script>
-// Carga los elementos subidos desde el panel admin (datos.json) y luego arranca la web
-fetch('datos.json?t=' + Date.now(), { cache: 'no-store' })
-  .then(function (r) { return r.ok ? r.json() : []; })
-  .catch(function () { return []; })
-  .then(function (d) {
-    window.CATALOGO = (window.CATALOGO || []).concat(Array.isArray(d) ? d : []);
-    var s = document.createElement('script'); s.src = 'app.js'; document.body.appendChild(s);
-  });
-</script>
+<script src="data.js"></script>
+<script src="social.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

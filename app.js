@@ -1,223 +1,191 @@
-// Mirador: catálogo de anime. Datos: API pública de AniList (GraphQL). Sin contenido adulto.
-const API = 'https://graphql.anilist.co';
-const FIELDS = `id title{romaji english} coverImage{large} averageScore episodes format status seasonYear genres description(asHtml:false) siteUrl externalLinks{site url type}`;
-const QUERY = `query($page:Int,$perPage:Int,$sort:[MediaSort],$search:String,$genre:String,$status:MediaStatus){
-  Page(page:$page,perPage:$perPage){pageInfo{hasNextPage} media(type:ANIME,isAdult:false,sort:$sort,search:$search,genre:$genre,status:$status){${FIELDS}}}}`;
-const GENRES = ['Action','Adventure','Comedy','Drama','Fantasy','Horror','Mahou Shoujo','Mecha','Music','Mystery','Psychological','Romance','Sci-Fi','Slice of Life','Sports','Supernatural','Thriller'];
-const GENRES_ES = {Action:'Acción',Adventure:'Aventura',Comedy:'Comedia',Drama:'Drama',Fantasy:'Fantasía',Horror:'Terror','Mahou Shoujo':'Chicas mágicas',Mecha:'Mecha',Music:'Música',Mystery:'Misterio',Psychological:'Psicológico',Romance:'Romance','Sci-Fi':'Ciencia ficción','Slice of Life':'Recuentos de la vida',Sports:'Deportes',Supernatural:'Sobrenatural',Thriller:'Suspense'};
-const VIEWS = {
-  trending:{t:'Tendencias',sort:['TRENDING_DESC']},
-  popular:{t:'Populares',sort:['POPULARITY_DESC']},
-  top:{t:'Mejor valorados',sort:['SCORE_DESC']},
-  airing:{t:'En emisión',sort:['POPULARITY_DESC'],status:'RELEASING'}
-};
-const $ = (id) => document.getElementById(id);
-const state = {view:'home', genre:null, search:'', page:1, hasNext:false, loading:false};
+// Home: Latest / Featured, pestañas por tipo, secciones por género, serie y personaje.
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var SITE = window.SITE || {}, C = window.Catalog;
+  var items = [];
 
-// ---- Modo contenido propio (contenido.js) ----
-const LOCAL = Array.isArray(window.CATALOGO) && window.CATALOGO.length > 0;
-const SITIO = Object.assign({nombre:'Mira', destacado:'dor', subtitulo:'', buscar:'', nota:'', enlaces:'Dónde verlo (oficial)'}, window.SITIO || {});
-function normLocal(c,i){
-  return {id:String(c.id||('l'+i)), title:String(c.titulo||'Sin título'), cover:String(c.imagen||''),
-    score:c.puntuacion?String(c.puntuacion):null, fila:c.fila||'Destacados',
-    full:{episodes:c.episodios||null, format:String(c.tipo||''), year:c.anio||null, genres:Array.isArray(c.generos)?c.generos:[],
-      desc:String(c.descripcion||''), url:null, anime:String(c.anime||''), personaje:String(c.personaje||''), hashtags:Array.isArray(c.hashtags)?c.hashtags.map(String):[], paginas:Array.isArray(c.paginas)?c.paginas.map(String).filter(Boolean):[],
-      links:(c.enlaces||[]).filter((l)=>l&&/^https:\/\//.test(l.url)).map((l)=>({site:String(l.texto||'Abrir'),url:l.url,custom:true}))}};
-}
-const LOCAL_ITEMS = LOCAL ? window.CATALOGO.map(normLocal) : [];
-const LOCAL_ROWS = [];
-if (LOCAL) {
-  const filas = [];
-  LOCAL_ITEMS.forEach((m)=>{ if(!filas.includes(m.fila)) filas.push(m.fila); });
-  filas.forEach((f,i)=>{ VIEWS['f'+i]={t:f,fila:f}; LOCAL_ROWS.push('f'+i); });
-  VIEWS.all={t:'Todo el catálogo'};
-}
-function localFetch(v){
-  let items = LOCAL_ITEMS.slice();
-  if (v.fila) items = items.filter((m)=>m.fila===v.fila);
-  if (v.genre) items = items.filter((m)=>m.full.genres.includes(v.genre));
-  if (v.search){ const q=v.search.toLowerCase().replace(/^#/,''); items = items.filter((m)=>[m.title,m.full.desc,m.full.anime,m.full.personaje,m.fila,m.full.genres.join(' '),m.full.hashtags.join(' ')].join(' ').toLowerCase().includes(q)); }
-  const start=(v.page-1)*v.perPage;
-  return Promise.resolve({items:items.slice(start,start+v.perPage), hasNext:items.length>start+v.perPage});
-}
-function genreList(){ return LOCAL ? [...new Set(LOCAL_ITEMS.flatMap((m)=>m.full.genres))] : GENRES; }
-// Marca: nombre, logo y textos
-(function(){
-  const l=$('logo'); l.textContent=SITIO.nombre;
-  const sp=document.createElement('span'); sp.textContent=SITIO.destacado; l.appendChild(sp);
-  document.title=SITIO.nombre+SITIO.destacado+(SITIO.subtitulo?' · '+SITIO.subtitulo:'');
-  $('q').placeholder = SITIO.buscar || (LOCAL ? 'Buscar…' : 'Buscar anime…');
-  $('h-links').textContent = LOCAL ? (SITIO.enlaces==='Dónde verlo (oficial)'?'Enlaces':SITIO.enlaces) : SITIO.enlaces;
-  if (LOCAL) {
-    $('note').textContent = SITIO.nota;
-    const t=document.querySelector('[data-view="trending"]'); t.dataset.view='all'; t.textContent='📚 Todo el catálogo';
-    ['popular','top','airing'].forEach((v)=>{document.querySelector('[data-view="'+v+'"]').hidden=true;});
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
   }
+  function setMsg(t) { $('msg').textContent = t || ''; }
+  function eq(a, b) { return String(a).toLowerCase() === String(b).toLowerCase(); }
+
+  // ---------- Marca ----------
+  (function brand() {
+    var l = $('logo'); l.textContent = SITE.name || 'My';
+    var sp = el('span', null, SITE.highlight || 'Catalog'); l.appendChild(sp);
+    document.title = (SITE.name || 'My') + (SITE.highlight || 'Catalog') + (SITE.tagline ? ' · ' + SITE.tagline : '');
+    $('q').placeholder = SITE.searchPlaceholder || 'Search…';
+    if (SITE.description) document.querySelector('meta[name="description"]').setAttribute('content', SITE.description);
+  })();
+
+  // ---------- Rutas por hash ----------
+  var KINDS = ['type', 'genre', 'series', 'character', 'q'];
+  function parseRoute() {
+    var h = location.hash.replace(/^#/, ''), i = h.indexOf('=');
+    if (i < 0) return { k: 'home' };
+    var k = h.slice(0, i), v = '';
+    try { v = decodeURIComponent(h.slice(i + 1)); } catch (e) { return { k: 'home' }; }
+    return KINDS.indexOf(k) >= 0 && v ? { k: k, v: v } : { k: 'home' };
+  }
+  function nav(k, v) {
+    var t = '#' + k + '=' + encodeURIComponent(v);
+    if (location.hash === t) render(); else location.hash = t;
+  }
+  function goHome() { if (location.hash && location.hash !== '#') location.hash = ''; else render(); }
+
+  // ---------- Componentes ----------
+  function badge(type) { var b = el('span', 'badge-type', type); b.style.setProperty('--c', C.typeColor(type)); return b; }
+  function card(it, likes) {
+    var b = el('button', 'card'); b.type = 'button';
+    var p = el('div', 'poster'), im = el('img');
+    im.loading = 'lazy'; im.alt = it.title; im.src = it.cover; im.onerror = function () { im.style.visibility = 'hidden'; };
+    p.append(im, badge(it.type));
+    if (typeof likes === 'number') p.appendChild(el('span', 'likes', '♥ ' + likes));
+    b.append(p, el('div', 'name', it.title));
+    b.onclick = function () { openModal(it); };
+    return b;
+  }
+  function skeletons(n) {
+    var f = document.createDocumentFragment();
+    for (var i = 0; i < n; i++) { var c = el('div', 'card skeleton'); c.appendChild(el('div', 'poster')); f.appendChild(c); }
+    return f;
+  }
+  function rowSection(title, sub) {
+    var wrap = el('section'), head = el('div', 'row-head'), h = el('h2', null, title);
+    if (sub) h.appendChild(el('span', 'sub', sub));
+    var nav2 = el('div', 'nav'), prev = el('button', null, '‹'), next = el('button', null, '›');
+    prev.setAttribute('aria-label', 'Previous'); next.setAttribute('aria-label', 'Next');
+    var row = el('div', 'row');
+    prev.onclick = function () { row.scrollBy({ left: -row.clientWidth * 0.8 }); };
+    next.onclick = function () { row.scrollBy({ left: row.clientWidth * 0.8 }); };
+    nav2.append(prev, next); head.append(h, nav2); wrap.append(head, row);
+    return { wrap: wrap, row: row };
+  }
+
+  // ---------- Pestañas y géneros ----------
+  function renderTabs(r) {
+    var box = $('tabs'); box.innerHTML = '';
+    function mk(label, color, on, fn) {
+      var b = el('button', 'tab' + (on ? ' on' : '')); b.type = 'button';
+      if (color) b.style.setProperty('--c', color);
+      b.append(el('i'), document.createTextNode(label)); b.onclick = fn; return b;
+    }
+    box.appendChild(mk('Home', null, r.k === 'home', goHome));
+    C.TYPES.forEach(function (t) {
+      box.appendChild(mk(t.name, t.color, r.k === 'type' && eq(r.v, t.name), function () { nav('type', t.name); }));
+    });
+  }
+  function renderChips(r) {
+    var box = $('chips'); box.innerHTML = '';
+    var count = {};
+    items.forEach(function (it) { it.genres.forEach(function (g) { var k = g.toLowerCase(); (count[k] = count[k] || { n: 0, label: g }).n++; }); });
+    Object.keys(count).map(function (k) { return count[k]; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 30).forEach(function (g) {
+      var c = el('button', 'chip' + (r.k === 'genre' && eq(r.v, g.label) ? ' on' : ''), g.label); c.type = 'button';
+      c.onclick = function () { nav('genre', g.label); }; box.appendChild(c);
+    });
+  }
+
+  // ---------- Vistas ----------
+  function showGrid(box, title, list) {
+    $('title').textContent = title;
+    box.appendChild(el('h2', 'sect-title', title + ' · ' + list.length + (list.length === 1 ? ' post' : ' posts')));
+    if (!list.length) { setMsg('No posts found.'); return; }
+    var g = el('div', 'grid');
+    list.slice().sort(C.newest).forEach(function (it) { g.appendChild(card(it)); });
+    box.appendChild(g);
+  }
+  function contactPanel() {
+    var c = SITE.contact || {}, p = el('div', 'contact');
+    p.appendChild(el('h2', 'sect-title', 'Contact')).style.marginTop = '0';
+    var has = false;
+    if (c.text) { p.appendChild(el('p', null, c.text)); has = true; }
+    if (c.email) { var a = el('a', null, c.email); a.href = 'mailto:' + c.email; p.appendChild(a); has = true; }
+    (c.links || []).forEach(function (l) {
+      if (l && /^https:\/\//.test(l.url)) { var x = el('a', null, l.label || l.url); x.href = l.url; x.target = '_blank'; x.rel = 'noopener noreferrer'; p.appendChild(x); has = true; }
+    });
+    if (!has) p.appendChild(el('p', 'muted', 'Contact details have not been added yet.'));
+    return p;
+  }
+  function home(box) {
+    $('title').textContent = 'Home';
+    if (!items.length) { setMsg('No posts yet.'); return; }
+    var L = rowSection('Latest', 'Newest posts');
+    items.slice().sort(C.newest).slice(0, 20).forEach(function (it) { L.row.appendChild(card(it)); });
+    box.appendChild(L.wrap);
+    var F = rowSection('Featured', 'Most liked');
+    F.row.appendChild(skeletons(7)); box.appendChild(F.wrap);
+    loadFeatured(F.row);
+  }
+  function loadFeatured(row) {
+    function note(t) { row.innerHTML = ''; row.appendChild(el('p', 'muted', t)); }
+    if (!Social.enabled) { note('Featured posts will appear here once likes are enabled.'); return; }
+    var byId = {}; items.forEach(function (it) { byId[it.id] = it; });
+    Social.topPosts(40).then(function (list) {
+      row.innerHTML = ''; var n = 0;
+      list.forEach(function (p) { if (n < 7 && byId[p.id]) { row.appendChild(card(byId[p.id], p.likes)); n++; } });
+      if (!n) note('No likes yet. Sign in and like a post to see it here.');
+    }).catch(function (e) { console.warn(e); note('Featured posts are unavailable right now.'); });
+  }
+
+  function render() {
+    var r = parseRoute(), box = $('content');
+    renderTabs(r); renderChips(r); box.innerHTML = ''; setMsg('');
+    if (r.k === 'home') { home(box); return; }
+    var list, title;
+    if (r.k === 'type') {
+      title = r.v; list = items.filter(function (i) { return eq(i.type, r.v); });
+      if (eq(r.v, 'Contact')) box.appendChild(contactPanel());
+    } else if (r.k === 'genre') { title = 'Genre: ' + r.v; list = items.filter(function (i) { return i.genres.some(function (g) { return eq(g, r.v); }); }); }
+    else if (r.k === 'series') { title = 'Series: ' + r.v; list = items.filter(function (i) { return i.series && eq(i.series, r.v); }); }
+    else if (r.k === 'character') { title = 'Character: ' + r.v; list = items.filter(function (i) { return i.character && eq(i.character, r.v); }); }
+    else {
+      var q = r.v.toLowerCase(); title = 'Results for “' + r.v + '”';
+      list = items.filter(function (i) { return [i.title, i.desc, i.series, i.character, i.type, i.genres.join(' ')].join(' ').toLowerCase().indexOf(q) >= 0; });
+    }
+    if (r.k === 'type' && eq(r.v, 'Contact') && !list.length) { $('title').textContent = 'Contact'; return; }
+    showGrid(box, title, list);
+  }
+
+  // ---------- Ficha ----------
+  function xlink(text, k, v) {
+    var a = el('a', 'xlink', text); a.href = '#' + k + '=' + encodeURIComponent(v);
+    a.onclick = function (e) { e.preventDefault(); closeModal(); nav(k, v); };
+    return a;
+  }
+  function openModal(it) {
+    $('m-img').src = it.cover; $('m-img').alt = it.title;
+    var t = $('m-type'); t.innerHTML = ''; t.appendChild(badge(it.type));
+    $('m-title').textContent = it.title;
+    var meta = $('m-meta'); meta.innerHTML = '';
+    if (it.series) { meta.append(el('b', null, 'Series: '), xlink(it.series, 'series', it.series)); }
+    if (it.series && it.character) meta.appendChild(document.createTextNode('  ·  '));
+    if (it.character) { meta.append(el('b', null, 'Character: '), xlink(it.character, 'character', it.character)); }
+    meta.hidden = !(it.series || it.character);
+    var tags = $('m-tags'); tags.innerHTML = '';
+    it.genres.forEach(function (g) {
+      var a = el('a', null, g); a.href = '#genre=' + encodeURIComponent(g);
+      a.onclick = function (e) { e.preventDefault(); closeModal(); nav('genre', g); }; tags.appendChild(a);
+    });
+    $('m-desc').textContent = it.desc || 'No description yet.';
+    var rd = $('b-read'), can = it.pages.length || C.youtubeId(it.video);
+    rd.hidden = !can; if (can) rd.href = 'lector.html?id=' + encodeURIComponent(it.id);
+    $('modal').hidden = false; $('close').focus(); document.body.style.overflow = 'hidden';
+  }
+  function closeModal() { $('modal').hidden = true; document.body.style.overflow = ''; }
+  $('close').onclick = closeModal;
+  $('modal').addEventListener('click', function (e) { if (e.target === $('modal')) closeModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('modal').hidden) closeModal(); });
+
+  // ---------- Arranque ----------
+  $('logo').onclick = function (e) { e.preventDefault(); $('q').value = ''; goHome(); };
+  $('search-form').onsubmit = function (e) { e.preventDefault(); var q = $('q').value.trim(); if (q) nav('q', q); };
+  window.addEventListener('hashchange', render);
+  Social.mountAuth($('auth')); Social.init();
+  renderTabs({ k: 'home' }); $('content').appendChild(skeletons(8));
+  C.load().then(function (list) { items = list; render(); });
 })();
-
-// ---- Listas guardadas en el navegador ----
-function load(k){try{return JSON.parse(localStorage.getItem(k)||'[]')}catch(e){return []}}
-function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
-const lists = {pend:load('mirador:pend'), visto:load('mirador:visto')};
-function has(k,id){return lists[k].some((m)=>m.id===id)}
-function toggle(k,m){
-  if(has(k,m.id)) lists[k]=lists[k].filter((x)=>x.id!==m.id);
-  else lists[k].push({id:m.id,title:m.title,cover:m.cover,score:m.score,full:m.full});
-  save('mirador:'+k,lists[k]); counts();
-}
-function counts(){$('n-pend').textContent=lists.pend.length;$('n-visto').textContent=lists.visto.length}
-
-// ---- Datos ----
-async function fetchMedia(v){
-  if (LOCAL) return localFetch(v);
-  const res = await fetch(API,{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({query:QUERY,variables:v})});
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  const j = await res.json();
-  if(j.errors) throw new Error('Error de la API');
-  return {items:j.data.Page.media.map(norm), hasNext:j.data.Page.pageInfo.hasNextPage};
-}
-function clean(html){
-  const d=new DOMParser().parseFromString(String(html||'').replace(/<br\s*\/?>/gi,'\n'),'text/html');
-  return (d.body.textContent||'').trim();
-}
-function norm(m){
-  return {id:m.id,title:m.title.english||m.title.romaji,cover:m.coverImage.large,
-    score:m.averageScore?(m.averageScore/10).toFixed(1):null,
-    full:{episodes:m.episodes,format:m.format,status:m.status,year:m.seasonYear,genres:m.genres||[],desc:clean(m.description),url:m.siteUrl,
-      links:(m.externalLinks||[]).filter((l)=>l.type==='STREAMING'&&/^https:\/\//.test(l.url)).map((l)=>({site:l.site,url:l.url}))}};
-}
-
-// ---- Tarjetas ----
-function card(m){
-  const b=document.createElement('button'); b.className='card'; b.type='button';
-  const p=document.createElement('div'); p.className='poster';
-  const img=document.createElement('img'); img.loading='lazy'; img.alt=''; img.src=m.cover; p.appendChild(img);
-  if(m.score){const s=document.createElement('span'); s.className='badge'; s.textContent='★ '+m.score; p.appendChild(s);}
-  const n=document.createElement('div'); n.className='name'; n.textContent=m.title;
-  b.append(p,n); b.onclick=()=>openModal(m); return b;
-}
-function skeletons(n){
-  const f=document.createDocumentFragment();
-  for(let i=0;i<n;i++){const c=document.createElement('div');c.className='card skeleton';c.innerHTML='<div class="poster"></div>';f.appendChild(c)}
-  return f;
-}
-
-// ---- Vistas ----
-function setMsg(t){$('msg').textContent=t||''}
-function setActive(v){document.querySelectorAll('.side [data-view]').forEach((b)=>b.classList.toggle('active',b.dataset.view===v))}
-
-async function showHome(){
-  state.view='home'; setActive('home'); $('more').hidden=true; setMsg('');
-  const box=$('content'); box.innerHTML=''; $('title').textContent='Inicio';
-  for(const key of (LOCAL?LOCAL_ROWS:['trending','popular','top'])){
-    const wrap=document.createElement('section');
-    const head=document.createElement('div'); head.className='row-head';
-    const h=document.createElement('h2'); h.textContent=VIEWS[key].t;
-    const nav=document.createElement('div'); nav.className='nav';
-    const prev=document.createElement('button'); prev.textContent='‹'; prev.setAttribute('aria-label','Anterior');
-    const next=document.createElement('button'); next.textContent='›'; next.setAttribute('aria-label','Siguiente');
-    const all=document.createElement('button'); all.className='all'; all.textContent='Ver todo'; all.onclick=()=>showGrid(key);
-    nav.append(prev,next,all); head.append(h,nav);
-    const row=document.createElement('div'); row.className='row'; row.appendChild(skeletons(8));
-    prev.onclick=()=>row.scrollBy({left:-row.clientWidth*.8}); next.onclick=()=>row.scrollBy({left:row.clientWidth*.8});
-    wrap.append(head,row); box.appendChild(wrap);
-    fetchMedia({page:1,perPage:20,sort:VIEWS[key].sort,fila:VIEWS[key].fila}).then((r)=>{row.innerHTML='';r.items.forEach((m)=>row.appendChild(card(m)))})
-      .catch(()=>{row.innerHTML='';setMsg('No se pudo cargar el catálogo. Revisa tu conexión e inténtalo de nuevo.')});
-  }
-}
-
-async function showGrid(view,reset=true){
-  if(state.loading) return;
-  if(reset){state.view=view;state.page=1;$('content').innerHTML='<div class="grid" id="grid"></div>';setActive(view)}
-  const v=view==='search'?{t:'Resultados'}:VIEWS[view];
-  $('title').textContent=state.search&&view==='search'?'Resultados para «'+state.search+'»':v.t+(state.genre?' · '+(GENRES_ES[state.genre]||state.genre):'');
-  const grid=$('grid'); const sk=skeletons(12); grid.appendChild(sk); state.loading=true; setMsg(''); $('more').hidden=true;
-  try{
-    const vars={page:state.page,perPage:30,sort:view==='search'?['SEARCH_MATCH']:v.sort};
-    if(state.genre) vars.genre=state.genre; if(v.status) vars.status=v.status; if(LOCAL&&v.fila) vars.fila=v.fila; if(view==='search') vars.search=state.search;
-    const r=await fetchMedia(vars);
-    grid.querySelectorAll('.skeleton').forEach((e)=>e.remove());
-    r.items.forEach((m)=>grid.appendChild(card(m)));
-    state.hasNext=r.hasNext; $('more').hidden=!r.hasNext;
-    if(!grid.children.length) setMsg('No hay resultados.');
-  }catch(e){grid.querySelectorAll('.skeleton').forEach((x)=>x.remove());setMsg('No se pudo cargar. Inténtalo de nuevo en unos segundos.')}
-  state.loading=false;
-}
-
-function showList(k){
-  state.view=k; setActive(k); $('more').hidden=true;
-  $('title').textContent=k==='pend'?'Mis pendientes':'Vistos';
-  const box=$('content'); box.innerHTML='<div class="grid" id="grid"></div>';
-  lists[k].forEach((m)=>$('grid').appendChild(card(m)));
-  setMsg(lists[k].length?'':'Todavía no hay nada aquí. Abre una ficha y usa los botones.');
-}
-
-async function showRandom(){
-  if(LOCAL){ openModal(LOCAL_ITEMS[Math.floor(Math.random()*LOCAL_ITEMS.length)]); return; }
-  setMsg('Buscando algo al azar…');
-  try{
-    const r=await fetchMedia({page:Math.ceil(Math.random()*200),perPage:1,sort:['POPULARITY_DESC']});
-    setMsg(''); if(r.items[0]) openModal(r.items[0]);
-  }catch(e){setMsg('No se pudo elegir uno al azar.')}
-}
-
-// ---- Ficha ----
-let current=null;
-function openModal(m){
-  current=m; $('m-img').src=m.cover; $('m-title').textContent=m.title;
-  const f=m.full||{}; const bits=[];
-  if(m.score) bits.push('★ '+m.score); if(f.format) bits.push(String(f.format).replace('_',' ')); if(f.year) bits.push(f.year); if(f.episodes) bits.push(f.episodes+' episodios');
-  $('m-meta').textContent=bits.join(' · ');
-  const ex=[]; if(f.anime) ex.push('Anime: '+f.anime); if(f.personaje) ex.push('Personaje: '+f.personaje);
-  $('m-extra').textContent=ex.join(' · '); $('m-extra').hidden=!ex.length;
-  const hb=$('m-hash'); hb.innerHTML='';
-  (f.hashtags||[]).forEach((t)=>{const b=document.createElement('button');b.type='button';b.className='tagbtn';b.textContent='#'+t;b.onclick=()=>{closeModal();$('q').value=t;$('search-form').requestSubmit()};hb.appendChild(b)});
-  const tags=$('m-tags'); tags.innerHTML=''; (f.genres||[]).forEach((g)=>{const s=document.createElement('span');s.textContent=GENRES_ES[g]||g;tags.appendChild(s)});
-  $('m-desc').textContent=f.desc||'Sin sinopsis disponible.';
-  const links=$('m-links'); links.innerHTML='';
-  (f.links||[]).forEach((l)=>links.appendChild(link('Ver en '+l.site,l.url)));
-  if(f.url) links.appendChild(link('Ficha en AniList',f.url));
-  if(!links.children.length) links.textContent='No hay enlaces oficiales registrados.';
-  const rd=$('b-read'); const np=(f.paginas||[]).length; rd.hidden=!np; if(np) rd.href='lector.html?id='+encodeURIComponent(m.id);
-  syncButtons(); $('modal').hidden=false; $('close').focus(); document.body.style.overflow='hidden';
-}
-function link(t,u){const a=document.createElement('a');a.textContent=t;a.href=u;a.target='_blank';a.rel='noopener noreferrer';return a}
-function syncButtons(){
-  const p=has('pend',current.id), v=has('visto',current.id);
-  $('b-pend').textContent=p?'✓ En pendientes':'+ Quiero verlo'; $('b-pend').classList.toggle('on',p);
-  $('b-visto').textContent=v?'✓ Visto':'Marcar como visto'; $('b-visto').classList.toggle('on',v);
-}
-function closeModal(){$('modal').hidden=true;document.body.style.overflow='';if(state.view==='pend'||state.view==='visto')showList(state.view)}
-$('b-pend').onclick=()=>{toggle('pend',current);syncButtons()};
-$('b-visto').onclick=()=>{toggle('visto',current);syncButtons()};
-$('close').onclick=closeModal;
-$('modal').addEventListener('click',(e)=>{if(e.target===$('modal'))closeModal()});
-document.addEventListener('keydown',(e)=>{if(e.key==='Escape'&&!$('modal').hidden)closeModal()});
-
-// ---- Navegación ----
-document.querySelectorAll('.side [data-view]').forEach((b)=>b.onclick=()=>{
-  const v=b.dataset.view; $('side').classList.remove('open');
-  if(v!=='random'){state.search='';$('q').value='';}
-  if(v==='home'){state.genre=null;renderChips();showHome()}
-  else if(v==='random') showRandom();
-  else if(v==='pend'||v==='visto') showList(v);
-  else showGrid(v);
-});
-$('menu').onclick=()=>$('side').classList.toggle('open');
-$('logo').onclick=(e)=>{e.preventDefault();state.genre=null;state.search='';$('q').value='';renderChips();showHome()};
-$('more').onclick=()=>{state.page++;showGrid(state.view,false)};
-$('search-form').onsubmit=(e)=>{e.preventDefault();const q=$('q').value.trim();if(!q)return;state.search=q;state.genre=null;renderChips();showGrid('search')};
-
-function renderChips(){
-  const box=$('chips'); box.innerHTML='';
-  const all=document.createElement('button'); all.className='chip'+(state.genre?'':' on'); all.textContent='Todo';
-  all.onclick=()=>{state.genre=null;renderChips();state.view==='home'||state.view==='pend'||state.view==='visto'?showHome():showGrid(state.view)};
-  box.appendChild(all);
-  genreList().forEach((g)=>{
-    const c=document.createElement('button'); c.className='chip'+(state.genre===g?' on':''); c.textContent=GENRES_ES[g]||g;
-    c.onclick=()=>{state.genre=g;state.search='';$('q').value='';renderChips();showGrid(['home','pend','visto','search'].includes(state.view)?(LOCAL?'all':'popular'):state.view)};
-    box.appendChild(c);
-  });
-}
-
-counts(); renderChips(); showHome();

@@ -1,18 +1,24 @@
 // =====================================================================
-//  TEXTOS DE TU WEB. Las imágenes se suben desde el panel admin (admin.html);
-//  no hace falta tocar CATALOGO aquí. Si no hay ninguna imagen subida,
-//  la web muestra el catálogo automático de AniList.
+//  SITE SETTINGS. The posts themselves are uploaded from admin.html.
 // =====================================================================
-window.SITIO = {
-  nombre: 'Mi',
-  destacado: 'Catálogo',
-  subtitulo: 'Mi colección',
-  buscar: 'Buscar por título, anime, personaje o #hashtag…',
-  enlaces: 'Enlaces',
-  nota: 'Colección personal.',
-  // Comentarios (Giscus). Rellena estos 4 datos cuando los tengas; si no, los comentarios no aparecen.
-  giscus: { repo: '', repoId: '', category: '', categoryId: '' }
+window.SITE = {
+  name: 'My',                      // first part of the logo
+  highlight: 'Catalog',            // second part (shown in the accent color)
+  tagline: 'My collection',        // browser tab text
+  searchPlaceholder: 'Search by title, series or character…',
+  description: 'Comics, galleries, posts, light novels and videos.',
+
+  // Shown in the "Contact" tab. Links must start with https://
+  contact: {
+    text: '',                      // e.g. 'Business inquiries and collaborations.'
+    email: '',                     // e.g. 'hello@example.com'
+    links: []                      // e.g. [{ label: 'Instagram', url: 'https://instagram.com/yourname' }]
+  },
+
+  // Sign-in, likes and comments (Firebase). Fill these 4 values from the
+  // Firebase console (Project settings → Your apps → Web app). Leave empty to disable.
+  firebase: { apiKey: '', authDomain: '', projectId: '', appId: '' }
 };
 
-// Opcional: elementos escritos a mano (se suman a los del panel admin).
+// Optional: posts written by hand (they are added to the ones from the admin panel).
 window.CATALOGO = [];
