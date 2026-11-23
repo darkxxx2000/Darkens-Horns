@@ -122,6 +122,19 @@ details ol{line-height:1.6;color:var(--muted)}
     <div class="items" id="items"></div>
     <p class="status" id="st-list"></p>
   </section>
+
+  <section class="panel" id="p-notice" hidden>
+    <h2>4 · Noticia destacada (columna derecha de la web)</h2>
+    <p class="hint">Una imagen, GIF o video <b>vertical</b> (ej. 9:16) sin texto ni botones. Al hacer clic abre el post que elijas. Máx. 15 MB para GIF o video.</p>
+    <div id="n-cur" class="hint" style="margin:10px 0"></div>
+    <div class="f"><label for="n-file">Imagen, GIF o video (MP4/WebM)</label><input id="n-file" type="file" accept="image/*,video/mp4,video/webm"></div>
+    <div class="f"><label for="n-post">Post que abre al hacer clic</label><select id="n-post"></select></div>
+    <div class="row2">
+      <button class="btn" id="n-publish">Publicar noticia</button>
+      <button class="btn alt" id="n-remove">Quitar noticia</button>
+    </div>
+    <p class="status" id="st-notice"></p>
+  </section>
 </main>
 
 <script>
@@ -212,14 +225,15 @@ async function connect() {
     saveCfg();
     const d = await readData(); items = d.items;
     say('st-conn', 'Conectado a ' + cfg.owner + '/' + cfg.repo, 'ok');
-    $('p-form').hidden = false; $('p-list').hidden = false; $('logout').hidden = false;
+    $('p-form').hidden = false; $('p-list').hidden = false; $('p-notice').hidden = false; $('logout').hidden = false;
     renderList();
+    loadNotice().catch((e) => say('st-notice', e.message, 'err'));
   } catch (e) { say('st-conn', e.message, 'err'); }
 }
 $('connect').onclick = connect;
 $('logout').onclick = () => {
   localStorage.removeItem(CFG_KEY); sessionStorage.removeItem(CFG_KEY);
-  cfg.token = ''; $('token').value = ''; $('p-form').hidden = true; $('p-list').hidden = true; $('logout').hidden = true;
+  cfg.token = ''; $('token').value = ''; $('p-form').hidden = true; $('p-list').hidden = true; $('p-notice').hidden = true; $('logout').hidden = true;
   say('st-conn', 'Sesión cerrada.');
 };
 
@@ -393,6 +407,7 @@ function renderList() {
     const del = document.createElement('button'); del.className = 'del'; del.textContent = 'Borrar'; del.onclick = () => remove(it);
     bar.append(ed, del); d.append(img, b, bar); box.appendChild(d);
   });
+  fillNoticeSelect();
   if (!items.length) say('st-list', 'Todavía no hay nada subido.');
   else say('st-list', '');
 }
@@ -418,6 +433,86 @@ async function remove(it) {
     say('st-list', 'Borrado.', 'ok');
   } catch (e) { say('st-list', 'No se pudo borrar: ' + e.message, 'err'); }
 }
+
+// ---------- Noticia destacada ----------
+let notice = { data: null };
+function fillNoticeSelect() {
+  const sel = $('n-post'); const cur = sel.value; sel.innerHTML = '';
+  items.forEach((it) => { const o = document.createElement('option'); o.value = it.id; o.textContent = it.titulo + ' · ' + typeFromLegacy(it); sel.appendChild(o); });
+  if (cur) sel.value = cur;
+}
+function fileToB64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1]);
+    r.onerror = () => rej(new Error('No se pudo leer el archivo.'));
+    r.readAsDataURL(file);
+  });
+}
+function renderNotice() {
+  const box = $('n-cur'); box.innerHTML = '';
+  const d = notice.data;
+  if (!d || !d.media) { box.textContent = 'No hay ninguna noticia activa.'; return; }
+  const it = items.find((x) => x.id === d.post);
+  box.appendChild(document.createTextNode('Activa ahora (abre: ' + (it ? it.titulo : 'post no encontrado') + '):'));
+  box.appendChild(document.createElement('br'));
+  let m;
+  if (d.type === 'video') { m = document.createElement('video'); m.src = rawUrl(d.media); m.muted = true; m.controls = true; m.playsInline = true; }
+  else { m = document.createElement('img'); m.src = rawUrl(d.media); m.alt = ''; }
+  m.style.cssText = 'max-width:140px;max-height:250px;border-radius:10px;margin-top:6px;display:block';
+  box.appendChild(m);
+}
+async function loadNotice() {
+  const f = await gh('GET', 'notice.json');
+  notice = { data: null };
+  if (f) { try { notice.data = JSON.parse(b64ToUtf8(f.content)); } catch (e) {} }
+  fillNoticeSelect(); renderNotice();
+}
+async function saveNotice(data, message) {
+  const f = await gh('GET', 'notice.json');
+  const body = { message, content: utf8ToB64(JSON.stringify(data, null, 2)), branch: cfg.branch };
+  if (f) body.sha = f.sha;
+  await gh('PUT', 'notice.json', body);
+}
+$('n-publish').onclick = async () => {
+  const file = $('n-file').files[0], postId = $('n-post').value;
+  if (!file && !(notice.data && notice.data.media)) { say('st-notice', 'Elige una imagen, GIF o video.', 'err'); return; }
+  if (!postId) { say('st-notice', 'Elige el post que debe abrir.', 'err'); return; }
+  $('n-publish').disabled = true;
+  try {
+    let media = notice.data && notice.data.media, type = notice.data && notice.data.type, oldMedia = null;
+    if (file) {
+      const isVideo = /^video\/(mp4|webm)$/.test(file.type), isGif = file.type === 'image/gif', isImg = file.type.startsWith('image/');
+      if (!isVideo && !isImg) throw new Error('Formato no válido. Usa imagen, GIF, MP4 o WebM.');
+      if ((isVideo || isGif) && file.size > 15 * 1024 * 1024) throw new Error('El archivo pesa más de 15 MB.');
+      say('st-notice', 'Subiendo archivo…');
+      let b64, ext;
+      if (isVideo) { b64 = await fileToB64(file); ext = file.type === 'video/webm' ? 'webm' : 'mp4'; type = 'video'; }
+      else if (isGif) { b64 = await fileToB64(file); ext = 'gif'; type = 'image'; }
+      else { b64 = await compress(file, 700); ext = 'jpg'; type = 'image'; }
+      const path = 'imagenes/notice-' + Date.now().toString(36) + '.' + ext;
+      await putRetry(path, { message: 'Subir media de la noticia', content: b64, branch: cfg.branch });
+      oldMedia = notice.data && notice.data.media; media = path;
+    }
+    say('st-notice', 'Guardando…');
+    const data = { media, type, post: postId, updated: Date.now() };
+    await saveNotice(data, 'Actualizar noticia destacada');
+    notice.data = data; $('n-file').value = ''; renderNotice();
+    if (oldMedia && oldMedia !== media) deleteFile(oldMedia);
+    say('st-notice', '¡Publicada! Aparecerá en la web en uno o dos minutos.', 'ok');
+  } catch (e) { say('st-notice', 'No se pudo publicar: ' + e.message, 'err'); }
+  $('n-publish').disabled = false;
+};
+$('n-remove').onclick = async () => {
+  if (!notice.data || !notice.data.media) { say('st-notice', 'No hay noticia activa.'); return; }
+  if (!confirm('¿Quitar la noticia destacada de la web?')) return;
+  try {
+    const old = notice.data.media;
+    await saveNotice({}, 'Quitar noticia destacada');
+    notice.data = null; renderNotice(); deleteFile(old);
+    say('st-notice', 'Noticia quitada.', 'ok');
+  } catch (e) { say('st-notice', 'No se pudo quitar: ' + e.message, 'err'); }
+};
 </script>
 </body>
 </html>

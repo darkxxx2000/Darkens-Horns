@@ -9,6 +9,7 @@
 </head>
 <body>
 <header class="top">
+  <button class="icon menu-btn" id="menu" type="button" aria-label="Open menu">☰</button>
   <a href="#" class="logo" id="logo">My<span>Catalog</span></a>
   <form id="search-form" class="search" role="search">
     <input id="q" type="search" placeholder="Search…" autocomplete="off" aria-label="Search">
@@ -18,12 +19,20 @@
 
 <nav class="tabs" id="tabs" aria-label="Sections"></nav>
 
-<main>
-  <div class="chips" id="chips" aria-label="Genres"></div>
-  <h1 id="title" class="sr">Home</h1>
-  <div id="content"></div>
-  <p id="msg" class="msg" role="status"></p>
-</main>
+<div class="layout" id="layout">
+  <aside class="side" id="side" aria-label="Browse by type, genre, anime or character"></aside>
+
+  <main>
+    <h1 id="title" class="sr">Home</h1>
+    <div id="content"></div>
+    <p id="msg" class="msg" role="status"></p>
+  </main>
+
+  <aside class="notice" id="notice" hidden>
+    <a id="notice-link" href="#"><span id="notice-media"></span></a>
+  </aside>
+</div>
+<div class="backdrop" id="backdrop"></div>
 
 <footer class="foot"><a href="admin.html">Admin</a></footer>
 

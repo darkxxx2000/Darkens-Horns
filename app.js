@@ -80,14 +80,69 @@
       box.appendChild(mk(t.name, t.color, r.k === 'type' && eq(r.v, t.name), function () { nav('type', t.name); }));
     });
   }
-  function renderChips(r) {
-    var box = $('chips'); box.innerHTML = '';
-    var count = {};
-    items.forEach(function (it) { it.genres.forEach(function (g) { var k = g.toLowerCase(); (count[k] = count[k] || { n: 0, label: g }).n++; }); });
-    Object.keys(count).map(function (k) { return count[k]; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 30).forEach(function (g) {
-      var c = el('button', 'chip' + (r.k === 'genre' && eq(r.v, g.label) ? ' on' : ''), g.label); c.type = 'button';
-      c.onclick = function () { nav('genre', g.label); }; box.appendChild(c);
+  // ---------- Barra lateral: Types, Genres, Anime, Characters ----------
+  var openState = {};
+  function counts(getter) {
+    var m = {};
+    items.forEach(function (it) {
+      [].concat(getter(it)).forEach(function (v) { if (!v) return; var k = v.toLowerCase(); (m[k] = m[k] || { n: 0, label: v }).n++; });
     });
+    return Object.keys(m).map(function (k) { return m[k]; }).sort(function (x, y) { return y.n - x.n || x.label.localeCompare(y.label); });
+  }
+  function closeSide() { document.body.classList.remove('side-open'); }
+  function renderSide(r) {
+    var box = $('side'); box.innerHTML = '';
+    var head = el('div', 'side-head'); head.appendChild(el('b', null, 'Browse'));
+    var x = el('button', 'icon', '✕'); x.type = 'button'; x.setAttribute('aria-label', 'Close menu'); x.onclick = closeSide;
+    head.appendChild(x); box.appendChild(head);
+    function group(title, list, k) {
+      var d = el('details', 'sgroup'); d.open = openState[title] !== false;
+      d.addEventListener('toggle', function () { openState[title] = d.open; });
+      var s = el('summary', null, title); s.appendChild(el('span', 'cnt', String(list.length))); d.appendChild(s);
+      var wrap = el('div', 'slist');
+      if (!list.length) wrap.appendChild(el('p', 'empty', 'Nothing here yet.'));
+      list.forEach(function (g) {
+        var a2 = el('a', 'slink' + (r.k === k && eq(r.v, g.label) ? ' on' : ''));
+        a2.href = '#' + k + '=' + encodeURIComponent(g.label);
+        if (g.color) { var i = el('i'); i.style.background = g.color; a2.appendChild(i); }
+        a2.append(el('span', 'lbl', g.label), el('span', 'n', String(g.n)));
+        a2.onclick = function (e) { e.preventDefault(); closeSide(); nav(k, g.label); };
+        wrap.appendChild(a2);
+      });
+      d.appendChild(wrap); box.appendChild(d);
+    }
+    group('Types', C.TYPES.map(function (t) { return { label: t.name, color: t.color, n: items.filter(function (i) { return i.type === t.name; }).length }; }), 'type');
+    group('Genres', counts(function (i) { return i.genres; }), 'genre');
+    group('Anime', counts(function (i) { return i.series; }), 'series');
+    group('Characters', counts(function (i) { return i.character; }), 'character');
+  }
+
+  // ---------- Noticia destacada (columna derecha; solo imagen, GIF o vídeo) ----------
+  function loadNotice() {
+    var box = $('notice'), layout = $('layout');
+    box.hidden = true; layout.classList.remove('has-notice');
+    fetch('notice.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+      .then(function (d) {
+        if (!d || !d.media || !/^(imagenes\/[\w\-./]+|https:\/\/\S+)$/.test(d.media)) return;
+        var it = null; items.forEach(function (x) { if (x.id === String(d.post)) it = x; });
+        if (!it) return;
+        var m = $('notice-media'); m.innerHTML = '';
+        var node;
+        if (d.type === 'video') {
+          node = el('video'); node.src = d.media; node.muted = true; node.loop = true; node.playsInline = true;
+          node.setAttribute('playsinline', ''); node.preload = 'metadata'; node.disablePictureInPicture = true;
+          if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) node.autoplay = true;
+        } else { node = el('img'); node.src = d.media; node.alt = ''; }
+        m.appendChild(node);
+        if (node.play) { var pr = node.play(); if (pr && pr.catch) pr.catch(function () {}); }
+        var link = $('notice-link');
+        link.setAttribute('aria-label', 'Featured: ' + it.title);
+        var readable = it.pages.length || C.youtubeId(it.video);
+        link.href = readable ? 'lector.html?id=' + encodeURIComponent(it.id) : '#';
+        link.onclick = function (e) { if (!readable) { e.preventDefault(); openModal(it); } };
+        box.hidden = false; layout.classList.add('has-notice');
+      });
   }
 
   // ---------- Vistas ----------
@@ -134,7 +189,7 @@
 
   function render() {
     var r = parseRoute(), box = $('content');
-    renderTabs(r); renderChips(r); box.innerHTML = ''; setMsg('');
+    renderTabs(r); renderSide(r); box.innerHTML = ''; setMsg('');
     if (r.k === 'home') { home(box); return; }
     var list, title;
     if (r.k === 'type') {
@@ -179,13 +234,15 @@
   function closeModal() { $('modal').hidden = true; document.body.style.overflow = ''; }
   $('close').onclick = closeModal;
   $('modal').addEventListener('click', function (e) { if (e.target === $('modal')) closeModal(); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('modal').hidden) closeModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (!$('modal').hidden) closeModal(); closeSide(); } });
 
   // ---------- Arranque ----------
   $('logo').onclick = function (e) { e.preventDefault(); $('q').value = ''; goHome(); };
   $('search-form').onsubmit = function (e) { e.preventDefault(); var q = $('q').value.trim(); if (q) nav('q', q); };
+  $('menu').onclick = function () { document.body.classList.toggle('side-open'); };
+  $('backdrop').onclick = closeSide;
   window.addEventListener('hashchange', render);
   Social.mountAuth($('auth')); Social.init();
   renderTabs({ k: 'home' }); $('content').appendChild(skeletons(8));
-  C.load().then(function (list) { items = list; render(); });
+  C.load().then(function (list) { items = list; render(); loadNotice(); });
 })();
