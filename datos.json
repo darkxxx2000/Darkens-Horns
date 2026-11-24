@@ -80,5 +80,19 @@
     "descripcion": "Gallery",
     "imagen": "imagenes/bulma-namek-mws6jl7m.jpg",
     "paginas": []
+  },
+  {
+    "id": "umwv3v9kp",
+    "titulo": "Misty vs Horse",
+    "anime": "",
+    "personaje": "",
+    "tipo": "Comic",
+    "fecha": 1795549593913,
+    "video": "",
+    "generos": [],
+    "hashtags": [],
+    "descripcion": "",
+    "imagen": "imagenes/misty-vs-horse-mwv3v6jq.jpg",
+    "paginas": []
   }
 ]
