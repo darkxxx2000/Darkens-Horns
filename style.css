@@ -167,3 +167,7 @@ main{padding:16px;max-width:1500px;margin:auto}
 .smore{display:block;width:100%;margin:2px 0 6px;padding:6px 8px;border:0;border-radius:8px;background:none;color:var(--acc);font-size:.8rem;font-weight:700;text-align:left;cursor:pointer}
 .smore:hover{background:var(--bg)}
 .side::-webkit-scrollbar{display:none}
+
+.hright{display:flex;align-items:center;gap:8px;margin-left:auto;flex:none}
+.hright .auth{margin-left:0}
+@media(max-width:700px){.adm-link span{display:none}.adm-link{padding:9px 12px}}
